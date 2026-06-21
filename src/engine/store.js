@@ -1,25 +1,25 @@
 // ---------------------------------------------------------------------------
-// Global state (Zustand). In Phase 1 the "engine" only holds the generated
-// board geometry and a few view toggles — real game state arrives in Phase 3.
+// Global state (Zustand). Holds the generated board plus a few view toggles.
+// `regenerate()` rolls a new random board; `seed` makes any board reproducible.
 // ---------------------------------------------------------------------------
 
 import { create } from 'zustand';
 import { generateBoard } from '../board/board.js';
+import { randomSeed } from '../utils/random.js';
 
-const DEFAULT_SIZE = 56;
+const INITIAL_SEED = randomSeed();
 
 export const useGameStore = create((set) => ({
-  size: DEFAULT_SIZE,
-  board: generateBoard({ size: DEFAULT_SIZE, radius: 2 }),
+  board: generateBoard({ seed: INITIAL_SEED }),
 
-  // Visual overlays — Phase 1 is about *seeing* the geometry we computed.
+  // Dev overlays — off by default now that the board is fully painted.
   show: {
-    coords: true, // q,r,s label in each hex
+    coords: false, // q,r,s label in each hex
     vertices: false, // settlement spots
     edges: false, // road spots
   },
 
   toggle: (key) => set((s) => ({ show: { ...s.show, [key]: !s.show[key] } })),
 
-  setSize: (size) => set(() => ({ size, board: generateBoard({ size, radius: 2 }) })),
+  regenerate: () => set(() => ({ board: generateBoard({ seed: randomSeed() }) })),
 }));

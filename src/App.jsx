@@ -7,7 +7,7 @@ export default function App() {
     <div className="app">
       <header className="app__header">
         <h1>Catan</h1>
-        <span className="app__phase">Phase 1 · Foundation</span>
+        <span className="app__phase">Phase 2 · Board Gen</span>
       </header>
       <main className="app__main">
         <div className="app__board">
