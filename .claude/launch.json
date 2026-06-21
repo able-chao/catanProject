@@ -1,0 +1,14 @@
+{
+  "configurations": [
+    {
+      "name": "catan-dev",
+      "request": "launch",
+      "type": "node",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "export PATH=/opt/homebrew/bin:$PATH && npm run dev"],
+      "cwd": "${workspaceFolder}",
+      "port": 5173,
+      "url": "http://localhost:5173"
+    }
+  ]
+}
