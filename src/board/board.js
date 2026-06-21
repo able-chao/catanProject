@@ -70,7 +70,7 @@ export function buildGeometry(size, radius) {
       const key = pointKey(corner);
       let v = vertexByPoint.get(key);
       if (!v) {
-        v = { id: `v${vertices.size}`, x: corner.x, y: corner.y, hexIds: [], coastal: false, portId: null };
+        v = { id: `v${vertices.size}`, x: corner.x, y: corner.y, hexIds: [], edgeIds: [], adjacentVertexIds: [], coastal: false, portId: null };
         vertexByPoint.set(key, v);
         vertices.set(v.id, v);
       }
@@ -105,6 +105,11 @@ export function buildGeometry(size, radius) {
         };
         edgeByPoint.set(key, e);
         edges.set(e.id, e);
+        // Wire up vertex <-> edge and vertex <-> vertex adjacency.
+        va.edgeIds.push(e.id);
+        vb.edgeIds.push(e.id);
+        va.adjacentVertexIds.push(vb.id);
+        vb.adjacentVertexIds.push(va.id);
       }
       e.hexIds.push(tile.id);
       tile.edgeIds.push(e.id);
