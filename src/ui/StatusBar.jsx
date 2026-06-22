@@ -10,13 +10,14 @@ export default function StatusBar() {
   const game = useGameStore((s) => s.game);
   const canUndo = useGameStore((s) => s.history.length > 0);
   const rollDice = useGameStore((s) => s.rollDice);
-  const nextPhase = useGameStore((s) => s.nextPhase);
   const endTurn = useGameStore((s) => s.endTurn);
   const undo = useGameStore((s) => s.undo);
   const stealFrom = useGameStore((s) => s.stealFrom);
 
   const current = game.players[game.currentPlayer];
   const gameOver = game.phase === PHASES.GAME_OVER;
+  // Can't leave the phase while a trade or dev-card effect is unresolved.
+  const blocked = Boolean(game.pendingTrade) || game.pendingYearOfPlenty || game.pendingMonopoly || game.pendingRoadBuilding > 0;
 
   return (
     <div className="status">
@@ -78,22 +79,15 @@ export default function StatusBar() {
           </div>
         )}
 
-        {game.phase === PHASES.TRADE && (
+        {game.phase === PHASES.MAIN && (
           <>
-            <p className="hint">Trading arrives in Phase 5.</p>
-            <button className="btn" onClick={nextPhase}>Go to Build →</button>
-          </>
-        )}
-
-        {game.phase === PHASES.BUILD && (
-          <>
-            <p className="hint">Click a highlighted spot to build.</p>
+            <p className="hint">Build, trade, or play dev cards — all in any order — then end your turn.</p>
             <div className="builds">
               <BuildOption label="Road" cost={BUILD_COSTS.road} enabled={game.valid?.roads.length > 0} />
               <BuildOption label="Settlement" cost={BUILD_COSTS.settlement} enabled={game.valid?.settlements.length > 0} />
               <BuildOption label="City" cost={BUILD_COSTS.city} enabled={game.valid?.cities.length > 0} />
             </div>
-            <button className="btn" onClick={endTurn}>End turn ↻</button>
+            <button className="btn" onClick={endTurn} disabled={blocked}>End turn ↻</button>
           </>
         )}
       </div>

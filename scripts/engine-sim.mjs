@@ -109,12 +109,9 @@ for (let g = 0; g < GAMES; g++) {
       checkInvariants(game, board, 'robber');
     }
 
-    // TRADE -> BUILD
-    apply({ type: ACTIONS.NEXT_PHASE });
-
-    // Build greedily, prioritising VP (cities > settlements > roads).
+    // MAIN: build greedily, prioritising VP (cities > settlements > roads).
     let bg = 0;
-    while (game.phase === PHASES.BUILD && bg++ < 30) {
+    while (game.phase === PHASES.MAIN && bg++ < 30) {
       const v = game.valid;
       if (v.cities.length) apply({ type: ACTIONS.BUILD_CITY, vertexId: pick(v.cities) });
       else if (v.settlements.length) apply({ type: ACTIONS.BUILD_SETTLEMENT, vertexId: pick(v.settlements) });
@@ -126,7 +123,7 @@ for (let g = 0; g < GAMES; g++) {
     }
 
     if (game.phase === PHASES.GAME_OVER) { wins++; break; }
-    apply({ type: ACTIONS.NEXT_PHASE }); // BUILD -> END_TURN
+    apply({ type: ACTIONS.END_TURN }); // MAIN -> next ROLL
     checkInvariants(game, board, 'endturn');
   }
 }

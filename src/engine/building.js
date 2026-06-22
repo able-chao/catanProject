@@ -39,6 +39,11 @@ export function computeValidPlacements(state, board) {
   const none = { settlements: [], roads: [], cities: [] };
   const player = state.currentPlayer;
 
+  // Road Building dev card: place free roads, regardless of TRADE/BUILD phase.
+  if (state.pendingRoadBuilding > 0) {
+    return { ...none, roads: validRoadSpots(state, board, { setup: false, player }) };
+  }
+
   if (isSetupPhase(state.phase)) {
     if (state.awaitingRoad) {
       return {
@@ -53,7 +58,7 @@ export function computeValidPlacements(state, board) {
     return { ...none, settlements: validSettlementSpots(state, board, { setup: true }) };
   }
 
-  if (state.phase === PHASES.BUILD) {
+  if (state.phase === PHASES.MAIN) {
     const me = state.players[player];
     const hand = me.resources;
 

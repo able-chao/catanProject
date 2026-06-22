@@ -1,7 +1,10 @@
-// Player hands + victory points, plus the shared bank.
+// Player hands + victory points (incl. special cards), the bank, and the
+// Largest Army / Longest Road holders.
 
 import { useGameStore } from '../engine/store.js';
-import { RESOURCE_KEYS, RESOURCE_COLOR, RESOURCE_LABEL, handTotal } from '../engine/setup.js';
+import { RESOURCE_KEYS, RESOURCE_COLOR, RESOURCE_LABEL, handTotal, totalVictoryPoints } from '../engine/setup.js';
+
+const devTotal = (dev) => Object.values(dev).reduce((s, n) => s + n, 0);
 
 export default function Players() {
   const game = useGameStore((s) => s.game);
@@ -14,7 +17,11 @@ export default function Players() {
           <div className="pcard__head">
             <span className="pcard__chip" style={{ background: p.color }} />
             <span className="pcard__name">{p.name}</span>
-            <span className="pcard__vp">{p.victoryPoints} VP</span>
+            <span className="pcard__badges">
+              {game.largestArmy === p.id && <span className="badge" title="Largest Army">⚔</span>}
+              {game.longestRoad === p.id && <span className="badge" title="Longest Road">🛣</span>}
+            </span>
+            <span className="pcard__vp">{totalVictoryPoints(game, p.id)} VP</span>
           </div>
           <div className="pcard__hand">
             {RESOURCE_KEYS.map((r) => (
@@ -24,6 +31,10 @@ export default function Players() {
               </span>
             ))}
             <span className="pcard__total">{handTotal(p.resources)}</span>
+          </div>
+          <div className="pcard__meta">
+            <span title="Development cards">🎴 {devTotal(p.dev)}</span>
+            <span title="Knights played">⚔ {p.knightsPlayed}</span>
           </div>
         </div>
       ))}

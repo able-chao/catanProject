@@ -1,6 +1,8 @@
 // Initial game state + player/resource definitions.
 
 import { PHASES } from './phases.js';
+import { mulberry32 } from '../utils/random.js';
+import { buildDevDeck, emptyDevHand } from './devcards.js';
 
 export const RESOURCE_KEYS = ['lumber', 'wool', 'grain', 'ore', 'brick'];
 
@@ -51,10 +53,12 @@ export function createInitialGame(board, playerCount = 4) {
     name: p.name,
     color: p.color,
     resources: emptyHand(),
+    dev: emptyDevHand(), // dev cards in hand
+    knightsPlayed: 0,
     settlements: 0,
     cities: 0,
     roads: 0,
-    victoryPoints: 0,
+    victoryPoints: 0, // building VP only; bonuses added by totalVictoryPoints()
   }));
 
   const forward = players.map((p) => p.id);
@@ -78,8 +82,31 @@ export function createInitialGame(board, playerCount = 4) {
     diceTotal: null,
     bank: RESOURCE_KEYS.reduce((b, r) => ({ ...b, [r]: BANK_PER_RESOURCE }), {}),
     pendingSteal: null, // { candidates: [playerId, ...] }
+
+    // Phase 5 state
+    devDeck: buildDevDeck(mulberry32(board.seed + 1)),
+    devBought: emptyDevHand(), // bought THIS turn (can't be played yet)
+    playedDevThisTurn: false,
+    pendingRoadBuilding: 0, // free roads still to place
+    pendingYearOfPlenty: false,
+    pendingMonopoly: false,
+    robberFromKnight: false, // distinguishes a knight robber from a 7
+    largestArmy: null,
+    longestRoad: null,
+    longestRoadLength: 0,
+    pendingTrade: null, // { from, to, give, want, declined: [ids] }
+
     turn: 0,
     winner: null,
     log: [logEntry(0, `${players[0].name} places the first settlement`)],
   };
+}
+
+/** Building VP plus dev-card VP, Largest Army (+2) and Longest Road (+2). */
+export function totalVictoryPoints(game, playerId) {
+  const p = game.players[playerId];
+  let vp = p.victoryPoints + (p.dev?.vp ?? 0);
+  if (game.largestArmy === playerId) vp += 2;
+  if (game.longestRoad === playerId) vp += 2;
+  return vp;
 }

@@ -20,6 +20,7 @@ export default function Board() {
   const buildSettlement = useGameStore((s) => s.buildSettlement);
   const buildRoad = useGameStore((s) => s.buildRoad);
   const buildCity = useGameStore((s) => s.buildCity);
+  const placeFreeRoad = useGameStore((s) => s.placeFreeRoad);
   const moveRobber = useGameStore((s) => s.moveRobber);
 
   const size = board.size;
@@ -35,9 +36,10 @@ export default function Board() {
   const robberMode = game.phase === PHASES.MOVE_ROBBER;
   const robberHex = board.hexes.get(game.robberHex);
 
-  // Setup placements are free; BUILD placements cost resources.
+  // Setup placements are free; BUILD placements cost resources; Road Building
+  // dev card places free roads.
   const onSettlement = setup ? placeSettlement : buildSettlement;
-  const onRoad = setup ? placeRoad : buildRoad;
+  const onRoad = game.pendingRoadBuilding > 0 ? placeFreeRoad : setup ? placeRoad : buildRoad;
 
   return (
     <svg className="board" viewBox={viewBox} role="img" aria-label="Catan board">

@@ -318,6 +318,203 @@
   gap: 0.22rem;
 }
 
+/* ---- Shared bits ---- */
+.muted {
+  color: var(--muted);
+}
+.chip-btn {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.chip-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.mini-select {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.8rem;
+}
+.row-gap {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* Player badges & meta */
+.pcard__badges {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+.badge {
+  font-size: 0.8rem;
+}
+.pcard__vp {
+  margin-left: auto;
+}
+.pcard__meta {
+  display: flex;
+  gap: 0.8rem;
+  margin-top: 0.35rem;
+  font-size: 0.76rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+/* Bank / port trades */
+.bank-trades {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.bankrow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+}
+.bankrow__rate {
+  font-family: var(--mono);
+  font-weight: 700;
+}
+.bankrow .chip-btn {
+  margin-left: auto;
+}
+
+/* Bundle editor */
+.bundle {
+  margin-bottom: 0.5rem;
+}
+.bundle__label {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.bundle__rows {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+}
+.bundle__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+.step {
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.step:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.bundle__n {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+/* Player offer */
+.offer {
+  margin-top: 0.4rem;
+}
+.offer__terms {
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+}
+.offer__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+.offer__name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  min-width: 3.5rem;
+}
+.counter {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--line);
+}
+
+/* Dev cards */
+.dev-buy {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.dev-cost {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+.dev-deck {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-family: var(--mono);
+}
+.dev-hand {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.dev-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.84rem;
+}
+.dev-card__name {
+  flex: 1;
+}
+.dev-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.76rem;
+}
+
+/* Resource pickers (Monopoly / Year of Plenty) */
+.res-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+.res-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.res-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Buttons */
 .btn {
   width: 100%;

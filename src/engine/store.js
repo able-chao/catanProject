@@ -46,8 +46,23 @@ export const useGameStore = create((set, get) => ({
   buildCity: (vertexId) => get().dispatch({ type: ACTIONS.BUILD_CITY, vertexId }),
   rollDice: () => get().dispatch({ type: ACTIONS.ROLL_DICE, dice: [d6(), d6()] }),
   moveRobber: (hexId) => get().dispatch({ type: ACTIONS.MOVE_ROBBER, hexId }),
-  nextPhase: () => get().dispatch({ type: ACTIONS.NEXT_PHASE }),
   endTurn: () => get().dispatch({ type: ACTIONS.END_TURN }),
+
+  // --- Phase 5: trading & dev cards ---
+  bankTrade: (give, get_) => get().dispatch({ type: ACTIONS.BANK_TRADE, give, get: get_ }),
+  proposeTrade: (offer) => get().dispatch({ type: ACTIONS.PROPOSE_TRADE, ...offer }),
+  acceptTrade: (playerId) => get().dispatch({ type: ACTIONS.ACCEPT_TRADE, playerId }),
+  declineTrade: (playerId) => get().dispatch({ type: ACTIONS.DECLINE_TRADE, playerId }),
+  cancelTrade: () => get().dispatch({ type: ACTIONS.CANCEL_TRADE }),
+  buyDev: () => get().dispatch({ type: ACTIONS.BUY_DEV }),
+  playKnight: () => get().dispatch({ type: ACTIONS.PLAY_KNIGHT }),
+  playRoadBuilding: () => get().dispatch({ type: ACTIONS.PLAY_ROAD_BUILDING }),
+  placeFreeRoad: (edgeId) => get().dispatch({ type: ACTIONS.PLACE_FREE_ROAD, edgeId }),
+  skipRoadBuilding: () => get().dispatch({ type: ACTIONS.SKIP_ROAD_BUILDING }),
+  playYearOfPlenty: () => get().dispatch({ type: ACTIONS.PLAY_YEAR_OF_PLENTY }),
+  pickYearOfPlenty: (resources) => get().dispatch({ type: ACTIONS.PICK_YEAR_OF_PLENTY, resources }),
+  playMonopoly: () => get().dispatch({ type: ACTIONS.PLAY_MONOPOLY }),
+  pickMonopoly: (resource) => get().dispatch({ type: ACTIONS.PICK_MONOPOLY, resource }),
 
   /** Steal a uniformly random card from the chosen victim. */
   stealFrom: (fromPlayer) => {
