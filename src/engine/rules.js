@@ -49,6 +49,9 @@ export function canPlaceRoad(state, board, edgeId, { setup, player, settlementVe
 
   return e.vertexIds.some((vid) => {
     const building = state.buildings[vid];
+    // An opponent's building on a shared vertex breaks the chain: you may not
+    // extend a road *through* it, even if your own road also touches it.
+    if (building && building.player !== player) return false;
     if (building && building.player === player) return true;
     const v = board.vertices.get(vid);
     return v.edgeIds.some((eid) => eid !== edgeId && state.roads[eid] === player);

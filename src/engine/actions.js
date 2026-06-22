@@ -4,8 +4,11 @@
 // alone can deterministically replay a whole game.
 
 export const ACTIONS = {
-  PLACE_SETTLEMENT: 'PLACE_SETTLEMENT', // { vertexId }
-  PLACE_ROAD: 'PLACE_ROAD', //            { edgeId }
+  PLACE_SETTLEMENT: 'PLACE_SETTLEMENT', // { vertexId }   (free, setup only)
+  PLACE_ROAD: 'PLACE_ROAD', //            { edgeId }      (free, setup only)
+  BUILD_ROAD: 'BUILD_ROAD', //            { edgeId }      (costs resources)
+  BUILD_SETTLEMENT: 'BUILD_SETTLEMENT', //{ vertexId }
+  BUILD_CITY: 'BUILD_CITY', //            { vertexId }    (upgrade a settlement)
   ROLL_DICE: 'ROLL_DICE', //              { dice: [d1, d2] }
   MOVE_ROBBER: 'MOVE_ROBBER', //          { hexId }
   STEAL: 'STEAL', //                      { fromPlayer, resource }

@@ -162,6 +162,11 @@
 .spot--road {
   stroke-linecap: round;
 }
+.spot--city {
+  fill: rgba(255, 255, 255, 0.12);
+  stroke-width: 3;
+  stroke-dasharray: 4 3;
+}
 @keyframes pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.75; }
@@ -283,6 +288,34 @@
   display: flex;
   gap: 0.4rem;
   flex-wrap: wrap;
+}
+
+/* Build cost guide */
+.builds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.7rem;
+}
+.build {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.84rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.build--off {
+  opacity: 0.4;
+}
+.build__name {
+  font-weight: 600;
+}
+.build__cost {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 0.22rem;
 }
 
 /* Buttons */

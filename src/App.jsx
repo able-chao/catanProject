@@ -10,7 +10,7 @@ export default function App() {
     <div className="app">
       <header className="app__header">
         <h1>Catan</h1>
-        <span className="app__phase">Phase 3 · Game Engine</span>
+        <span className="app__phase">Phase 4 · Building</span>
       </header>
       <main className="app__main">
         <div className="app__board">

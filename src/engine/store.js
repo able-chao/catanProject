@@ -9,13 +9,16 @@ import { create } from 'zustand';
 import { generateBoard } from '../board/board.js';
 import { createInitialGame, RESOURCE_KEYS } from './setup.js';
 import { gameReducer } from './reducer.js';
+import { computeValidPlacements } from './building.js';
 import { ACTIONS } from './actions.js';
 
 const HISTORY_LIMIT = 100;
 
 function freshGame(playerCount) {
   const board = generateBoard();
-  return { board, game: createInitialGame(board, playerCount), history: [] };
+  const game = createInitialGame(board, playerCount);
+  // Seed the precomputed placement cache for the opening settlement.
+  return { board, game: { ...game, valid: computeValidPlacements(game, board) }, history: [] };
 }
 
 const d6 = () => 1 + Math.floor(Math.random() * 6);
@@ -38,6 +41,9 @@ export const useGameStore = create((set, get) => ({
   // --- player-facing actions (inject randomness, then dispatch) ---
   placeSettlement: (vertexId) => get().dispatch({ type: ACTIONS.PLACE_SETTLEMENT, vertexId }),
   placeRoad: (edgeId) => get().dispatch({ type: ACTIONS.PLACE_ROAD, edgeId }),
+  buildRoad: (edgeId) => get().dispatch({ type: ACTIONS.BUILD_ROAD, edgeId }),
+  buildSettlement: (vertexId) => get().dispatch({ type: ACTIONS.BUILD_SETTLEMENT, vertexId }),
+  buildCity: (vertexId) => get().dispatch({ type: ACTIONS.BUILD_CITY, vertexId }),
   rollDice: () => get().dispatch({ type: ACTIONS.ROLL_DICE, dice: [d6(), d6()] }),
   moveRobber: (hexId) => get().dispatch({ type: ACTIONS.MOVE_ROBBER, hexId }),
   nextPhase: () => get().dispatch({ type: ACTIONS.NEXT_PHASE }),

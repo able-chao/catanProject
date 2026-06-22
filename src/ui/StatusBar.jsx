@@ -3,6 +3,8 @@
 
 import { useGameStore } from '../engine/store.js';
 import { PHASES, PHASE_LABEL, isSetupPhase } from '../engine/phases.js';
+import { BUILD_COSTS, expandCost } from '../engine/building.js';
+import { RESOURCE_COLOR, RESOURCE_LABEL } from '../engine/setup.js';
 
 export default function StatusBar() {
   const game = useGameStore((s) => s.game);
@@ -85,7 +87,12 @@ export default function StatusBar() {
 
         {game.phase === PHASES.BUILD && (
           <>
-            <p className="hint">Building arrives in Phase 4.</p>
+            <p className="hint">Click a highlighted spot to build.</p>
+            <div className="builds">
+              <BuildOption label="Road" cost={BUILD_COSTS.road} enabled={game.valid?.roads.length > 0} />
+              <BuildOption label="Settlement" cost={BUILD_COSTS.settlement} enabled={game.valid?.settlements.length > 0} />
+              <BuildOption label="City" cost={BUILD_COSTS.city} enabled={game.valid?.cities.length > 0} />
+            </div>
             <button className="btn" onClick={endTurn}>End turn ↻</button>
           </>
         )}
@@ -94,6 +101,19 @@ export default function StatusBar() {
       <button className="btn btn--ghost" onClick={undo} disabled={!canUndo}>
         ↶ Undo
       </button>
+    </div>
+  );
+}
+
+function BuildOption({ label, cost, enabled }) {
+  return (
+    <div className={`build${enabled ? '' : ' build--off'}`}>
+      <span className="build__name">{label}</span>
+      <span className="build__cost">
+        {expandCost(cost).map((r, i) => (
+          <span key={i} className="res__dot" style={{ background: RESOURCE_COLOR[r] }} title={RESOURCE_LABEL[r]} />
+        ))}
+      </span>
     </div>
   );
 }

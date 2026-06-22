@@ -1,13 +1,15 @@
 // The interactive game board: terrain + tokens + ports (static), plus the live
-// game layer — roads, settlements/cities, the robber, and click targets for
-// setup placement and robber moves.
+// game layer — roads, settlements/cities, the robber, and click targets.
+//
+// Placement highlights come straight from the precomputed `game.valid` cache
+// (built once per state change in the reducer). The board never re-validates.
 
 import { useGameStore } from '../engine/store.js';
 import Hexagon from './Hexagon.jsx';
 import { PHASES, isSetupPhase } from '../engine/phases.js';
-import { validSettlementSpots, validRoadSpots } from '../engine/rules.js';
 
 const lerp = (a, b, t) => a + (b - a) * t;
+const EMPTY = { settlements: [], roads: [], cities: [] };
 
 export default function Board() {
   const board = useGameStore((s) => s.board);
@@ -15,6 +17,9 @@ export default function Board() {
   const show = useGameStore((s) => s.show);
   const placeSettlement = useGameStore((s) => s.placeSettlement);
   const placeRoad = useGameStore((s) => s.placeRoad);
+  const buildSettlement = useGameStore((s) => s.buildSettlement);
+  const buildRoad = useGameStore((s) => s.buildRoad);
+  const buildCity = useGameStore((s) => s.buildCity);
   const moveRobber = useGameStore((s) => s.moveRobber);
 
   const size = board.size;
@@ -26,29 +31,17 @@ export default function Board() {
   const current = game.players[game.currentPlayer];
 
   const setup = isSetupPhase(game.phase);
-  const settlementSpots =
-    setup && !game.awaitingRoad ? validSettlementSpots(game, board, { setup: true }) : [];
-  const roadSpots =
-    setup && game.awaitingRoad
-      ? validRoadSpots(game, board, {
-          setup: true,
-          player: game.currentPlayer,
-          settlementVertex: game.lastSettlement,
-        })
-      : [];
+  const valid = game.valid ?? EMPTY;
   const robberMode = game.phase === PHASES.MOVE_ROBBER;
   const robberHex = board.hexes.get(game.robberHex);
 
+  // Setup placements are free; BUILD placements cost resources.
+  const onSettlement = setup ? placeSettlement : buildSettlement;
+  const onRoad = setup ? placeRoad : buildRoad;
+
   return (
     <svg className="board" viewBox={viewBox} role="img" aria-label="Catan board">
-      <rect
-        className="board__sea"
-        x={bounds.minX}
-        y={bounds.minY}
-        width={bounds.width}
-        height={bounds.height}
-        rx={size * 0.5}
-      />
+      <rect className="board__sea" x={bounds.minX} y={bounds.minY} width={bounds.width} height={bounds.height} rx={size * 0.5} />
 
       {/* Ports (static, Phase 2) */}
       <g className="board__ports">
@@ -76,11 +69,7 @@ export default function Board() {
         ))}
       </g>
 
-      {/* Robber blocks its hex */}
-      <polygon
-        className="robber-block"
-        points={robberHex.corners.map((c) => `${c.x},${c.y}`).join(' ')}
-      />
+      <polygon className="robber-block" points={robberHex.corners.map((c) => `${c.x},${c.y}`).join(' ')} />
 
       {/* Roads */}
       <g className="board__roads">
@@ -113,9 +102,8 @@ export default function Board() {
         <circle className="robber__head" cx={0} cy={-size * 0.12} r={size * 0.1} />
       </g>
 
-      {/* --- Interactive layers --- */}
+      {/* --- Interactive layers (from precomputed game.valid) --- */}
 
-      {/* Robber move targets */}
       {robberMode &&
         hexes
           .filter((h) => h.id !== game.robberHex)
@@ -128,8 +116,24 @@ export default function Board() {
             />
           ))}
 
-      {/* Valid settlement spots */}
-      {settlementSpots.map((vid) => {
+      {/* City upgrade spots (own settlements) */}
+      {valid.cities.map((vid) => {
+        const v = board.vertices.get(vid);
+        return (
+          <circle
+            key={`city-${vid}`}
+            className="spot spot--city"
+            cx={v.x}
+            cy={v.y}
+            r={size * 0.3}
+            stroke={current.color}
+            onClick={() => buildCity(vid)}
+          />
+        );
+      })}
+
+      {/* Settlement spots */}
+      {valid.settlements.map((vid) => {
         const v = board.vertices.get(vid);
         return (
           <circle
@@ -139,13 +143,13 @@ export default function Board() {
             cy={v.y}
             r={size * 0.17}
             fill={current.color}
-            onClick={() => placeSettlement(vid)}
+            onClick={() => onSettlement(vid)}
           />
         );
       })}
 
-      {/* Valid road spots */}
-      {roadSpots.map((eid) => {
+      {/* Road spots */}
+      {valid.roads.map((eid) => {
         const e = board.edges.get(eid);
         return (
           <line
@@ -157,7 +161,7 @@ export default function Board() {
             y2={e.y2}
             stroke={current.color}
             strokeWidth={size * 0.13}
-            onClick={() => placeRoad(eid)}
+            onClick={() => onRoad(eid)}
           />
         );
       })}
@@ -183,7 +187,6 @@ export default function Board() {
 
 function Building({ x, y, color, type, size }) {
   const k = size * (type === 'city' ? 0.3 : 0.22);
-  // Simple house silhouette, centred on the vertex.
   const house = [
     [-0.7 * k, 0.8 * k],
     [-0.7 * k, -0.15 * k],
@@ -198,14 +201,7 @@ function Building({ x, y, color, type, size }) {
     <g className="building">
       <polygon points={house} fill={color} className="building__poly" />
       {type === 'city' && (
-        <rect
-          className="building__poly"
-          x={x - 0.7 * k}
-          y={y + 0.2 * k}
-          width={1.4 * k}
-          height={0.6 * k}
-          fill={color}
-        />
+        <rect className="building__poly" x={x - 0.7 * k} y={y + 0.2 * k} width={1.4 * k} height={0.6 * k} fill={color} />
       )}
     </g>
   );

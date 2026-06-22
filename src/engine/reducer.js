@@ -5,6 +5,10 @@
 // mutating the old one. That single property is what makes undo, replay and
 // (later) multiplayer sync fall out for free, exactly as the Phase 3 key
 // insight promises. `board` is read-only context (static geometry).
+//
+// Phase 4: after every state change we recompute `state.valid` once (the set of
+// legal placements) and cache it. Build handlers and the UI both read that
+// cache instead of re-validating per click.
 // ---------------------------------------------------------------------------
 
 import { PHASES, isSetupPhase } from './phases.js';
@@ -12,16 +16,30 @@ import { ACTIONS } from './actions.js';
 import { RESOURCE_KEYS, emptyHand, handTotal, logEntry } from './setup.js';
 import { canPlaceSettlement, canPlaceRoad } from './rules.js';
 import { distribute } from './distribution.js';
+import { BUILD_COSTS, computeValidPlacements } from './building.js';
 
 const WIN_VP = 10;
 const DISCARD_LIMIT = 7;
 
 export function gameReducer(state, action, board) {
+  const next = route(state, action, board);
+  if (next === state) return state;
+  // Pre-compute valid placements once, here — not on every click/render.
+  return { ...next, valid: computeValidPlacements(next, board) };
+}
+
+function route(state, action, board) {
   switch (action.type) {
     case ACTIONS.PLACE_SETTLEMENT:
       return placeSettlement(state, board, action.vertexId);
     case ACTIONS.PLACE_ROAD:
       return placeRoad(state, board, action.edgeId);
+    case ACTIONS.BUILD_ROAD:
+      return buildRoad(state, action.edgeId);
+    case ACTIONS.BUILD_SETTLEMENT:
+      return buildSettlement(state, action.vertexId);
+    case ACTIONS.BUILD_CITY:
+      return buildCity(state, action.vertexId);
     case ACTIONS.ROLL_DICE:
       return rollDice(state, board, action.dice);
     case ACTIONS.MOVE_ROBBER:
@@ -69,6 +87,24 @@ function grantFromBank(state, playerId, grants) {
   }));
 }
 
+/** Spend a build cost: cards leave the player and return to the bank. */
+function payCost(state, playerId, cost) {
+  const bank = { ...state.bank };
+  for (const r of Object.keys(cost)) bank[r] += cost[r];
+  return updatePlayer({ ...state, bank }, playerId, (p) => {
+    const resources = { ...p.resources };
+    for (const r of Object.keys(cost)) resources[r] -= cost[r];
+    return { ...p, resources };
+  });
+}
+
+function checkWin(state, playerId) {
+  if (state.players[playerId].victoryPoints >= WIN_VP) {
+    return log({ ...state, phase: PHASES.GAME_OVER, winner: playerId }, `${playerName(state, playerId)} wins!`);
+  }
+  return state;
+}
+
 // --- setup -----------------------------------------------------------------
 
 function placeSettlement(state, board, vertexId) {
@@ -106,20 +142,15 @@ function placeSettlement(state, board, vertexId) {
 
 function placeRoad(state, board, edgeId) {
   const player = state.currentPlayer;
-  const setup = isSetupPhase(state.phase);
-  if (setup && !state.awaitingRoad) return state;
-  if (!canPlaceRoad(state, board, edgeId, { setup, player, settlementVertex: state.lastSettlement })) {
+  if (!isSetupPhase(state.phase) || !state.awaitingRoad) return state;
+  if (!canPlaceRoad(state, board, edgeId, { setup: true, player, settlementVertex: state.lastSettlement })) {
     return state;
   }
 
   let next = { ...state, roads: { ...state.roads, [edgeId]: player } };
   next = updatePlayer(next, player, (p) => ({ ...p, roads: p.roads + 1 }));
-
-  if (setup) {
-    next = { ...next, awaitingRoad: false, lastSettlement: null };
-    return advanceSetup(next);
-  }
-  return log(next, `${playerName(state, player)} built a road`);
+  next = { ...next, awaitingRoad: false, lastSettlement: null };
+  return advanceSetup(next);
 }
 
 function advanceSetup(state) {
@@ -135,6 +166,47 @@ function advanceSetup(state) {
   const phase = setupIndex < state.players.length ? PHASES.SETUP_FORWARD : PHASES.SETUP_REVERSE;
   const next = { ...state, setupIndex, currentPlayer: nextPlayer, phase };
   return log(next, `${playerName(state, nextPlayer)} to place a settlement`);
+}
+
+// --- building (BUILD phase, costs resources) -------------------------------
+
+function buildRoad(state, edgeId) {
+  if (state.phase !== PHASES.BUILD || !state.valid?.roads.includes(edgeId)) return state;
+  const player = state.currentPlayer;
+  let next = payCost(state, player, BUILD_COSTS.road);
+  next = { ...next, roads: { ...next.roads, [edgeId]: player } };
+  next = updatePlayer(next, player, (p) => ({ ...p, roads: p.roads + 1 }));
+  return log(next, `${playerName(state, player)} built a road`);
+}
+
+function buildSettlement(state, vertexId) {
+  if (state.phase !== PHASES.BUILD || !state.valid?.settlements.includes(vertexId)) return state;
+  const player = state.currentPlayer;
+  let next = payCost(state, player, BUILD_COSTS.settlement);
+  next = { ...next, buildings: { ...next.buildings, [vertexId]: { type: 'settlement', player } } };
+  next = updatePlayer(next, player, (p) => ({
+    ...p,
+    settlements: p.settlements + 1,
+    victoryPoints: p.victoryPoints + 1,
+  }));
+  next = log(next, `${playerName(state, player)} built a settlement`);
+  return checkWin(next, player);
+}
+
+function buildCity(state, vertexId) {
+  if (state.phase !== PHASES.BUILD || !state.valid?.cities.includes(vertexId)) return state;
+  const player = state.currentPlayer;
+  let next = payCost(state, player, BUILD_COSTS.city);
+  // Upgrade in place; the settlement piece returns to the player's supply.
+  next = { ...next, buildings: { ...next.buildings, [vertexId]: { type: 'city', player } } };
+  next = updatePlayer(next, player, (p) => ({
+    ...p,
+    settlements: p.settlements - 1,
+    cities: p.cities + 1,
+    victoryPoints: p.victoryPoints + 1,
+  }));
+  next = log(next, `${playerName(state, player)} upgraded to a city`);
+  return checkWin(next, player);
 }
 
 // --- main loop -------------------------------------------------------------
@@ -238,11 +310,6 @@ function nextPhase(state) {
 
 function endTurn(state) {
   if (state.phase !== PHASES.TRADE && state.phase !== PHASES.BUILD) return state;
-
-  const winner = state.players.find((p) => p.victoryPoints >= WIN_VP);
-  if (winner) {
-    return log({ ...state, phase: PHASES.GAME_OVER, winner: winner.id }, `${winner.name} wins!`);
-  }
 
   const nextPlayer = (state.currentPlayer + 1) % state.players.length;
   const next = {

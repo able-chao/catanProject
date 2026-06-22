@@ -6,7 +6,8 @@ import { createInitialGame, RESOURCE_KEYS, handTotal } from '../src/engine/setup
 import { gameReducer } from '../src/engine/reducer.js';
 import { ACTIONS } from '../src/engine/actions.js';
 import { PHASES, isSetupPhase } from '../src/engine/phases.js';
-import { validSettlementSpots, validRoadSpots, hasAdjacentBuilding } from '../src/engine/rules.js';
+import { validSettlementSpots, validRoadSpots } from '../src/engine/rules.js';
+import { SUPPLY_LIMITS } from '../src/engine/building.js';
 
 const GAMES = Number(process.argv[2] ?? 300);
 const TURNS = Number(process.argv[3] ?? 60);
@@ -17,6 +18,8 @@ let failures = 0;
 let sevens = 0;
 let discards = 0;
 let steals = 0;
+let builds = 0;
+let wins = 0;
 
 function fail(msg, game) {
   failures++;
@@ -43,6 +46,13 @@ function checkInvariants(game, board, label) {
   // 4. VP == settlements + 2*cities.
   for (const p of game.players) {
     if (p.victoryPoints !== p.settlements + 2 * p.cities) fail(`VP mismatch ${p.name}`, game);
+  }
+  // 5. Supply limits respected.
+  for (const p of game.players) {
+    if (p.roads > SUPPLY_LIMITS.roads) fail(`road supply exceeded ${p.name}`, game);
+    if (p.settlements > SUPPLY_LIMITS.settlements) fail(`settlement supply exceeded ${p.name}`, game);
+    if (p.cities > SUPPLY_LIMITS.cities) fail(`city supply exceeded ${p.name}`, game);
+    if (p.settlements < 0 || p.cities < 0) fail(`negative piece count ${p.name}`, game);
   }
 }
 
@@ -99,9 +109,24 @@ for (let g = 0; g < GAMES; g++) {
       checkInvariants(game, board, 'robber');
     }
 
-    // TRADE -> BUILD -> END_TURN
+    // TRADE -> BUILD
     apply({ type: ACTIONS.NEXT_PHASE });
-    apply({ type: ACTIONS.NEXT_PHASE });
+
+    // Build greedily, prioritising VP (cities > settlements > roads).
+    let bg = 0;
+    while (game.phase === PHASES.BUILD && bg++ < 30) {
+      const v = game.valid;
+      if (v.cities.length) apply({ type: ACTIONS.BUILD_CITY, vertexId: pick(v.cities) });
+      else if (v.settlements.length) apply({ type: ACTIONS.BUILD_SETTLEMENT, vertexId: pick(v.settlements) });
+      else if (v.roads.length) apply({ type: ACTIONS.BUILD_ROAD, edgeId: pick(v.roads) });
+      else break;
+      builds++;
+      checkInvariants(game, board, 'build');
+      if (game.phase === PHASES.GAME_OVER) break;
+    }
+
+    if (game.phase === PHASES.GAME_OVER) { wins++; break; }
+    apply({ type: ACTIONS.NEXT_PHASE }); // BUILD -> END_TURN
     checkInvariants(game, board, 'endturn');
   }
 }
@@ -111,6 +136,8 @@ console.log(`Turns each:       ${TURNS}`);
 console.log(`Sevens rolled:    ${sevens}`);
 console.log(`Discards:         ${discards}`);
 console.log(`Steals:           ${steals}`);
+console.log(`Builds:           ${builds}`);
+console.log(`Games won (10VP): ${wins}`);
 console.log(`Invariant fails:  ${failures}`);
 console.log(failures === 0 ? '\nPASS — all invariants held.' : '\nFAILURES present.');
 process.exit(failures === 0 ? 0 : 1);
