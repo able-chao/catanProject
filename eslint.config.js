@@ -18,4 +18,9 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // The multiplayer server runs in Node, not the browser.
+    files: ['server/**/*.js'],
+    languageOptions: { globals: globals.node },
+  },
 ])

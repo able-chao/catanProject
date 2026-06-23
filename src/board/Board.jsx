@@ -23,6 +23,8 @@ export default function Board() {
   const buildCity = useGameStore((s) => s.buildCity);
   const placeFreeRoad = useGameStore((s) => s.placeFreeRoad);
   const moveRobber = useGameStore((s) => s.moveRobber);
+  const mode = useGameStore((s) => s.mode);
+  const mySeat = useGameStore((s) => s.mySeat);
 
   const size = board.size;
   const { bounds } = board;
@@ -34,7 +36,10 @@ export default function Board() {
 
   const setup = isSetupPhase(game.phase);
   const valid = game.valid ?? EMPTY;
+  // Online: you may only interact on your own turn.
+  const canAct = mode === 'local' || game.currentPlayer === mySeat;
   const robberMode = game.phase === PHASES.MOVE_ROBBER;
+  const canRobber = robberMode && canAct;
   const robberHex = board.hexes.get(game.robberHex);
 
   // Draggable robber pawn that snaps to the nearest hex centre on release.
@@ -121,14 +126,14 @@ export default function Board() {
 
       {/* Robber piece — draggable during MOVE_ROBBER */}
       <g
-        className={`robber${robberMode ? ' robber--draggable' : ''}`}
+        className={`robber${canRobber ? ' robber--draggable' : ''}`}
         transform={
           drag
             ? `translate(${drag.x}, ${drag.y})`
             : `translate(${robberHex.center.x - size * 0.46}, ${robberHex.center.y - size * 0.4})`
         }
         onPointerDown={
-          robberMode
+          canRobber
             ? (e) => {
                 e.currentTarget.setPointerCapture(e.pointerId);
                 const p = toSvg(e);
@@ -154,7 +159,7 @@ export default function Board() {
 
       {/* --- Interactive layers (from precomputed game.valid) --- */}
 
-      {robberMode &&
+      {canRobber &&
         hexes
           .filter((h) => h.id !== game.robberHex)
           .map((h) => (
@@ -167,7 +172,7 @@ export default function Board() {
           ))}
 
       {/* City upgrade spots (own settlements) */}
-      {valid.cities.map((vid) => {
+      {canAct && valid.cities.map((vid) => {
         const v = board.vertices.get(vid);
         return (
           <circle
@@ -183,7 +188,7 @@ export default function Board() {
       })}
 
       {/* Settlement spots */}
-      {valid.settlements.map((vid) => {
+      {canAct && valid.settlements.map((vid) => {
         const v = board.vertices.get(vid);
         return (
           <circle
@@ -199,7 +204,7 @@ export default function Board() {
       })}
 
       {/* Road spots */}
-      {valid.roads.map((eid) => {
+      {canAct && valid.roads.map((eid) => {
         const e = board.edges.get(eid);
         return (
           <line

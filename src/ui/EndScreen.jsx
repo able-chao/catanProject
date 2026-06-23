@@ -9,9 +9,11 @@ const COLS = ['Settle', 'City', 'VP', 'Road', 'Army'];
 
 export default function EndScreen() {
   const game = useGameStore((s) => s.game);
+  const mode = useGameStore((s) => s.mode);
   const newGame = useGameStore((s) => s.newGame);
+  const backToHome = useGameStore((s) => s.backToHome);
 
-  if (game.phase !== PHASES.GAME_OVER || game.winner == null) return null;
+  if (!game || game.phase !== PHASES.GAME_OVER || game.winner == null) return null;
 
   const winner = game.players[game.winner];
   const ranked = [...game.players].sort(
@@ -53,7 +55,9 @@ export default function EndScreen() {
           </tbody>
         </table>
 
-        <button className="btn" onClick={() => newGame()}>New game</button>
+        <button className="btn" onClick={() => (mode === 'online' ? backToHome() : newGame())}>
+          {mode === 'online' ? 'Back to home' : 'New game'}
+        </button>
       </motion.div>
     </div>
   );

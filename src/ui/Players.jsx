@@ -9,14 +9,17 @@ const devTotal = (dev) => Object.values(dev).reduce((s, n) => s + n, 0);
 
 export default function Players() {
   const game = useGameStore((s) => s.game);
+  const mode = useGameStore((s) => s.mode);
+  const mySeat = useGameStore((s) => s.mySeat);
 
   return (
     <div className="players">
       <h2 className="panel__title">Players</h2>
       {game.players.map((p) => {
-        const owner = p.id === game.currentPlayer; // you only see your own cards
+        const isCurrent = p.id === game.currentPlayer; // whose turn it is
+        const owner = mode === 'online' ? p.id === mySeat : isCurrent; // who sees the hand
         return (
-          <div key={p.id} className={`pcard${owner ? ' pcard--active' : ''}`} style={{ '--pc': p.color }}>
+          <div key={p.id} className={`pcard${isCurrent ? ' pcard--active' : ''}`} style={{ '--pc': p.color }}>
             <div className="pcard__head">
               <span className="pcard__chip" style={{ background: p.color }} />
               <span className="pcard__name">{p.name}</span>

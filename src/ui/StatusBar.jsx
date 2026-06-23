@@ -14,9 +14,13 @@ export default function StatusBar() {
   const endTurn = useGameStore((s) => s.endTurn);
   const undo = useGameStore((s) => s.undo);
   const stealFrom = useGameStore((s) => s.stealFrom);
+  const mode = useGameStore((s) => s.mode);
+  const mySeat = useGameStore((s) => s.mySeat);
 
   const current = game.players[game.currentPlayer];
   const gameOver = game.phase === PHASES.GAME_OVER;
+  // Online: you only act on your own turn.
+  const canAct = mode === 'local' || game.currentPlayer === mySeat;
   // Can't leave the phase while a trade or dev-card effect is unresolved.
   const blocked = Boolean(game.pendingTrade) || game.pendingYearOfPlenty || game.pendingMonopoly || game.pendingRoadBuilding > 0;
 
@@ -56,22 +60,26 @@ export default function StatusBar() {
       )}
 
       <div className="status__action">
-        {isSetupPhase(game.phase) && (
+        {mode === 'online' && !canAct && !gameOver && (
+          <p className="hint">Waiting for {current.name}…</p>
+        )}
+
+        {canAct && isSetupPhase(game.phase) && (
           <p className="hint">
             {game.awaitingRoad ? 'Click a highlighted edge to place a road.' : 'Click a highlighted spot to place a settlement.'}
             {game.phase === PHASES.SETUP_REVERSE && !game.awaitingRoad && ' Your 2nd settlement collects resources.'}
           </p>
         )}
 
-        {game.phase === PHASES.ROLL && (
+        {canAct && game.phase === PHASES.ROLL && (
           <button className="btn" onClick={rollDice}>🎲 Roll dice</button>
         )}
 
-        {game.phase === PHASES.MOVE_ROBBER && !game.pendingSteal && (
-          <p className="hint">Click any hex to move the robber there.</p>
+        {canAct && game.phase === PHASES.MOVE_ROBBER && !game.pendingSteal && (
+          <p className="hint">Drag the robber, or click any hex to move it.</p>
         )}
 
-        {game.pendingSteal && (
+        {canAct && game.pendingSteal && (
           <div className="steal">
             <p className="hint">Steal from:</p>
             <div className="steal__targets">
@@ -89,7 +97,7 @@ export default function StatusBar() {
           </div>
         )}
 
-        {game.phase === PHASES.MAIN && (
+        {canAct && game.phase === PHASES.MAIN && (
           <>
             <p className="hint">Build, trade, or play dev cards — all in any order — then end your turn.</p>
             <div className="builds">
@@ -102,9 +110,11 @@ export default function StatusBar() {
         )}
       </div>
 
-      <button className="btn btn--ghost" onClick={undo} disabled={!canUndo}>
-        ↶ Undo
-      </button>
+      {mode === 'local' && (
+        <button className="btn btn--ghost" onClick={undo} disabled={!canUndo}>
+          ↶ Undo
+        </button>
+      )}
     </div>
   );
 }

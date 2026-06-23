@@ -19,6 +19,9 @@ export default function DevPanel() {
   const game = useGameStore((s) => s.game);
   const store = useGameStore();
 
+  // Online: only the active player gets dev-card controls.
+  if (store.mode === 'online' && game.currentPlayer !== store.mySeat) return null;
+
   // Pending resolutions take over the panel.
   if (game.pendingMonopoly) return <MonopolyPicker pick={store.pickMonopoly} />;
   if (game.pendingYearOfPlenty) return <YearOfPlentyPicker bank={game.bank} pick={store.pickYearOfPlenty} />;

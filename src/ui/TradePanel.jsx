@@ -1,5 +1,6 @@
-// Trading UI (TRADE phase): bank/port trades + player-to-player offers with
-// accept / decline / counter.
+// Trading UI (MAIN phase): bank/port trades + player-to-player offers.
+// Works in local hotseat (one person drives everyone) and online (the active
+// player proposes; other players accept/decline from their own clients).
 
 import { useState } from 'react';
 import { useGameStore } from '../engine/store.js';
@@ -16,6 +17,8 @@ const fmt = (b) => {
 export default function TradePanel() {
   const game = useGameStore((s) => s.game);
   const board = useGameStore((s) => s.board);
+  const mode = useGameStore((s) => s.mode);
+  const mySeat = useGameStore((s) => s.mySeat);
   const bankTrade = useGameStore((s) => s.bankTrade);
   const proposeTrade = useGameStore((s) => s.proposeTrade);
   const acceptTrade = useGameStore((s) => s.acceptTrade);
@@ -37,41 +40,50 @@ export default function TradePanel() {
   const t = game.pendingTrade;
   const others = game.players.filter((p) => p.id !== cp);
 
+  const canAct = mode === 'local' || cp === mySeat;
+  const amResponder = mode === 'online' && t && t.from !== mySeat && (t.to == null || t.to === mySeat);
+  if (mode === 'online' && !canAct && !amResponder) return null;
+
   return (
     <div className="tradepanel">
-      <h2 className="panel__title">Bank / Port</h2>
-      <div className="bank-trades">
-        {RESOURCE_KEYS.map((r) => (
-          <BankRow key={r} give={r} rate={rates[r]} have={me.resources[r]} bank={game.bank} onTrade={bankTrade} />
-        ))}
-      </div>
-
-      <h2 className="panel__title">Player trade</h2>
-      {!t && (
+      {canAct && (
         <>
-          <BundleEditor label="You give" bundle={give} setBundle={setGive} max={me.resources} />
-          <BundleEditor label="You want" bundle={want} setBundle={setWant} />
-          <button
-            className="btn"
-            disabled={bundleTotal(give) + bundleTotal(want) === 0 || !hasBundle(me.resources, clean(give))}
-            onClick={() => {
-              proposeTrade({ from: cp, to: null, give: clean(give), want: clean(want) });
-              setGive({});
-              setWant({});
-            }}
-          >
-            Propose offer
-          </button>
+          <h2 className="panel__title">Bank / Port</h2>
+          <div className="bank-trades">
+            {RESOURCE_KEYS.map((r) => (
+              <BankRow key={r} give={r} rate={rates[r]} have={me.resources[r]} bank={game.bank} onTrade={bankTrade} />
+            ))}
+          </div>
+
+          <h2 className="panel__title">Player trade</h2>
+          {!t && (
+            <>
+              <BundleEditor label="You give" bundle={give} setBundle={setGive} max={me.resources} />
+              <BundleEditor label="You want" bundle={want} setBundle={setWant} />
+              <button
+                className="btn"
+                disabled={bundleTotal(give) + bundleTotal(want) === 0 || !hasBundle(me.resources, clean(give))}
+                onClick={() => {
+                  proposeTrade({ from: cp, to: null, give: clean(give), want: clean(want) });
+                  setGive({});
+                  setWant({});
+                }}
+              >
+                Propose offer
+              </button>
+            </>
+          )}
         </>
       )}
 
       {t && (
         <div className="offer">
+          {!canAct && <h2 className="panel__title">Trade offer</h2>}
           <p className="offer__terms">
             {game.players[t.from].name} gives <b>{fmt(t.give)}</b> for <b>{fmt(t.want)}</b>
           </p>
 
-          {t.from === cp ? (
+          {mode === 'local' && t.from === cp && (
             <>
               {others.map((p) => {
                 const eligible = hasBundle(p.resources, t.want);
@@ -93,14 +105,30 @@ export default function TradePanel() {
               })}
               <button className="btn btn--ghost btn--small" onClick={cancelTrade}>Cancel offer</button>
             </>
-          ) : (
+          )}
+
+          {mode === 'local' && t.from !== cp && (
             <div className="offer__row">
               <button className="btn btn--small" disabled={!hasBundle(me.resources, t.want)} onClick={() => acceptTrade(cp)}>Accept</button>
               <button className="btn btn--ghost btn--small" onClick={cancelTrade}>Reject</button>
             </div>
           )}
 
-          {counterFor != null && t.from === cp && (
+          {mode === 'online' && t.from === mySeat && (
+            <div className="offer__row">
+              <span className="muted">Waiting for responses…</span>
+              <button className="btn btn--ghost btn--small" onClick={cancelTrade}>Cancel</button>
+            </div>
+          )}
+
+          {mode === 'online' && amResponder && (
+            <div className="offer__row">
+              <button className="btn btn--small" disabled={!hasBundle(game.players[mySeat].resources, t.want)} onClick={() => acceptTrade(mySeat)}>Accept</button>
+              <button className="btn btn--ghost btn--small" onClick={() => declineTrade(mySeat)}>Decline</button>
+            </div>
+          )}
+
+          {mode === 'local' && counterFor != null && t.from === cp && (
             <div className="counter">
               <p className="muted">Counter as {game.players[counterFor].name}:</p>
               <BundleEditor label="They give" bundle={cGive} setBundle={setCGive} max={game.players[counterFor].resources} />
