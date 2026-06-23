@@ -1,6 +1,7 @@
 // Turn controller: shows the current phase/player, the dice, and the single
 // contextual action the active player can take right now.
 
+import { motion } from 'framer-motion';
 import { useGameStore } from '../engine/store.js';
 import { PHASES, PHASE_LABEL, isSetupPhase } from '../engine/phases.js';
 import { BUILD_COSTS, expandCost } from '../engine/building.js';
@@ -39,8 +40,17 @@ export default function StatusBar() {
 
       {game.dice && (
         <div className="dice">
-          <span className="die">{game.dice[0]}</span>
-          <span className="die">{game.dice[1]}</span>
+          {game.dice.map((d, i) => (
+            <motion.span
+              key={`${game.rollCount}-${i}`}
+              className="die"
+              initial={{ rotate: -150, scale: 0.3, opacity: 0 }}
+              animate={{ rotate: 0, scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 15, delay: i * 0.09 }}
+            >
+              {d}
+            </motion.span>
+          ))}
           <span className="dice__total">= {game.diceTotal}</span>
         </div>
       )}

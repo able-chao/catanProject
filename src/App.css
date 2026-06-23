@@ -630,11 +630,20 @@
   overflow-y: auto;
   font-size: 0.82rem;
 }
-.log__list li {
+.log__item {
   display: flex;
   gap: 0.45rem;
   line-height: 1.35;
   color: var(--text);
+  border-left: 3px solid transparent;
+  padding-left: 0.45rem;
+}
+.log__text {
+  flex: 1;
+}
+.log__end {
+  height: 0;
+  border: 0;
 }
 .log__turn {
   color: var(--muted);
@@ -688,6 +697,94 @@
   height: 15px;
   accent-color: var(--accent);
   cursor: pointer;
+}
+
+/* Hidden opponent hands */
+.pcard__hand--hidden {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.cardback {
+  font-size: 1rem;
+}
+
+/* Draggable robber */
+.robber--draggable {
+  cursor: grab;
+}
+.robber--draggable:active {
+  cursor: grabbing;
+}
+
+/* Win / end screen */
+.endscreen {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 15, 0.72);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  backdrop-filter: blur(3px);
+}
+.endscreen__card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1.5rem 1.75rem;
+  width: min(440px, 92vw);
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.endscreen__crown {
+  font-size: 2.6rem;
+}
+.endscreen__title {
+  margin: 0.3rem 0 0;
+  font-size: 1.7rem;
+}
+.vp-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.1rem 0;
+  font-size: 0.85rem;
+}
+.vp-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0.25rem;
+}
+.vp-table td {
+  padding: 0.4rem 0.25rem;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  text-align: center;
+}
+.vp-table td:first-child {
+  text-align: left;
+  font-family: inherit;
+}
+.vp-table__win {
+  background: rgba(74, 222, 128, 0.08);
+}
+.vp-total {
+  font-weight: 800;
+  color: var(--accent);
+}
+.vp-table .dot {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  vertical-align: middle;
+  margin-right: 0.3rem;
 }
 
 @media (max-width: 900px) {

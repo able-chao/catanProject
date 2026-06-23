@@ -82,3 +82,9 @@ export const useGameStore = create((set, get) => ({
 
   newGame: (playerCount) => set(() => freshGame(playerCount ?? get().game.players.length)),
 }));
+
+// Dev-only handle for debugging/testing in the browser console (stripped from
+// production builds).
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  window.__game = useGameStore;
+}

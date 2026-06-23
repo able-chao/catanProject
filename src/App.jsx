@@ -5,6 +5,7 @@ import DevPanel from './ui/DevPanel.jsx';
 import Players from './ui/Players.jsx';
 import Log from './ui/Log.jsx';
 import Overlays from './ui/Overlays.jsx';
+import EndScreen from './ui/EndScreen.jsx';
 import './App.css';
 
 export default function App() {
@@ -12,7 +13,7 @@ export default function App() {
     <div className="app">
       <header className="app__header">
         <h1>Catan</h1>
-        <span className="app__phase">Phase 5 · Trading</span>
+        <span className="app__phase">Phase 6 · UI &amp; Polish</span>
       </header>
       <main className="app__main">
         <div className="app__board">
@@ -27,6 +28,7 @@ export default function App() {
           <Overlays />
         </aside>
       </main>
+      <EndScreen />
     </div>
   );
 }

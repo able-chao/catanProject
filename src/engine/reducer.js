@@ -87,8 +87,9 @@ function route(state, action, board) {
 
 const playerName = (state, id) => state.players[id].name;
 
-function log(state, text) {
-  return { ...state, log: [...state.log, logEntry(state.turn, text)].slice(-60) };
+// `player` tags the acting player for log colour-coding; null = system event.
+function log(state, text, player = state.currentPlayer) {
+  return { ...state, log: [...state.log, logEntry(state.turn, text, player)].slice(-80) };
 }
 
 function updatePlayer(state, playerId, updater) {
@@ -150,8 +151,8 @@ function withLongestRoad(state, board) {
     return length === state.longestRoadLength ? state : { ...state, longestRoadLength: length };
   }
   let next = { ...state, longestRoad: holder, longestRoadLength: length };
-  if (holder != null) next = log(next, `${playerName(state, holder)} takes Longest Road (${length})`);
-  else next = log(next, 'Longest Road is now unclaimed');
+  if (holder != null) next = log(next, `${playerName(state, holder)} takes Longest Road (${length})`, holder);
+  else next = log(next, 'Longest Road is now unclaimed', null);
   return next;
 }
 
@@ -376,7 +377,7 @@ function pickMonopoly(state, resource) {
 function rollDice(state, board, dice) {
   if (state.phase !== PHASES.ROLL) return state;
   const total = dice[0] + dice[1];
-  let next = { ...state, dice, diceTotal: total };
+  let next = { ...state, dice, diceTotal: total, rollCount: (state.rollCount ?? 0) + 1 };
   next = log(next, `${playerName(state, state.currentPlayer)} rolled ${total} (${dice[0]} + ${dice[1]})`);
 
   if (total === 7) {
@@ -388,7 +389,7 @@ function rollDice(state, board, dice) {
   const { players, bank, gains } = distribute(next, board, total);
   next = { ...next, players, bank };
   const produced = Object.entries(gains).filter(([, g]) => handTotal(g) > 0).map(([pid, g]) => `${players[pid].name} +${handTotal(g)}`);
-  next = log(next, produced.length ? `Produced: ${produced.join(', ')}` : 'No resources produced');
+  next = log(next, produced.length ? `Produced: ${produced.join(', ')}` : 'No resources produced', null);
   return { ...next, phase: PHASES.MAIN };
 }
 
@@ -411,7 +412,7 @@ function applyDiscards(state) {
     return { ...p, resources };
   });
   let next = { ...state, players, bank };
-  for (const text of discarded) next = log(next, text);
+  for (const text of discarded) next = log(next, text, null);
   return next;
 }
 

@@ -4,6 +4,7 @@
 // Placement highlights come straight from the precomputed `game.valid` cache
 // (built once per state change in the reducer). The board never re-validates.
 
+import { useRef, useState } from 'react';
 import { useGameStore } from '../engine/store.js';
 import Hexagon from './Hexagon.jsx';
 import { PHASES, isSetupPhase } from '../engine/phases.js';
@@ -36,13 +37,33 @@ export default function Board() {
   const robberMode = game.phase === PHASES.MOVE_ROBBER;
   const robberHex = board.hexes.get(game.robberHex);
 
+  // Draggable robber pawn that snaps to the nearest hex centre on release.
+  const svgRef = useRef(null);
+  const [drag, setDrag] = useState(null);
+  const toSvg = (e) => {
+    const pt = svgRef.current.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    return pt.matrixTransform(svgRef.current.getScreenCTM().inverse());
+  };
+  const nearestHex = (x, y) => {
+    let best = null;
+    let bestD = Infinity;
+    for (const h of hexes) {
+      if (h.id === game.robberHex) continue;
+      const d = (h.center.x - x) ** 2 + (h.center.y - y) ** 2;
+      if (d < bestD) { bestD = d; best = h; }
+    }
+    return best;
+  };
+
   // Setup placements are free; BUILD placements cost resources; Road Building
   // dev card places free roads.
   const onSettlement = setup ? placeSettlement : buildSettlement;
   const onRoad = game.pendingRoadBuilding > 0 ? placeFreeRoad : setup ? placeRoad : buildRoad;
 
   return (
-    <svg className="board" viewBox={viewBox} role="img" aria-label="Catan board">
+    <svg ref={svgRef} className="board" viewBox={viewBox} role="img" aria-label="Catan board">
       <rect className="board__sea" x={bounds.minX} y={bounds.minY} width={bounds.width} height={bounds.height} rx={size * 0.5} />
 
       {/* Ports (static, Phase 2) */}
@@ -98,8 +119,35 @@ export default function Board() {
         })}
       </g>
 
-      {/* Robber piece */}
-      <g className="robber" transform={`translate(${robberHex.center.x - size * 0.46}, ${robberHex.center.y - size * 0.4})`}>
+      {/* Robber piece — draggable during MOVE_ROBBER */}
+      <g
+        className={`robber${robberMode ? ' robber--draggable' : ''}`}
+        transform={
+          drag
+            ? `translate(${drag.x}, ${drag.y})`
+            : `translate(${robberHex.center.x - size * 0.46}, ${robberHex.center.y - size * 0.4})`
+        }
+        onPointerDown={
+          robberMode
+            ? (e) => {
+                e.currentTarget.setPointerCapture(e.pointerId);
+                const p = toSvg(e);
+                setDrag({ x: p.x, y: p.y });
+              }
+            : undefined
+        }
+        onPointerMove={drag ? (e) => { const p = toSvg(e); setDrag({ x: p.x, y: p.y }); } : undefined}
+        onPointerUp={
+          drag
+            ? (e) => {
+                const p = toSvg(e);
+                const h = nearestHex(p.x, p.y);
+                setDrag(null);
+                if (h) moveRobber(h.id);
+              }
+            : undefined
+        }
+      >
         <ellipse className="robber__body" cx={0} cy={size * 0.1} rx={size * 0.16} ry={size * 0.2} />
         <circle className="robber__head" cx={0} cy={-size * 0.12} r={size * 0.1} />
       </g>

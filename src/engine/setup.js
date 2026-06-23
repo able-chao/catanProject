@@ -39,8 +39,8 @@ export function handTotal(hand) {
   return RESOURCE_KEYS.reduce((sum, r) => sum + hand[r], 0);
 }
 
-export function logEntry(turn, text) {
-  return { id: `${turn}-${Math.random().toString(36).slice(2, 7)}`, turn, text };
+export function logEntry(turn, text, player = null) {
+  return { id: `${turn}-${Math.random().toString(36).slice(2, 7)}`, turn, text, player };
 }
 
 /**
@@ -80,6 +80,7 @@ export function createInitialGame(board, playerCount = 4) {
     robberHex: desert ? desert.id : board.hexOrder[0],
     dice: null,
     diceTotal: null,
+    rollCount: 0, // increments each roll (drives the dice animation)
     bank: RESOURCE_KEYS.reduce((b, r) => ({ ...b, [r]: BANK_PER_RESOURCE }), {}),
     pendingSteal: null, // { candidates: [playerId, ...] }
 
@@ -98,7 +99,7 @@ export function createInitialGame(board, playerCount = 4) {
 
     turn: 0,
     winner: null,
-    log: [logEntry(0, `${players[0].name} places the first settlement`)],
+    log: [logEntry(0, `${players[0].name} places the first settlement`, 0)],
   };
 }
 
@@ -109,4 +110,16 @@ export function totalVictoryPoints(game, playerId) {
   if (game.largestArmy === playerId) vp += 2;
   if (game.longestRoad === playerId) vp += 2;
   return vp;
+}
+
+/** Itemised VP for the end-screen breakdown. */
+export function vpBreakdown(game, playerId) {
+  const p = game.players[playerId];
+  return [
+    { label: 'Settlements', value: p.settlements },
+    { label: 'Cities', value: p.cities * 2 },
+    { label: 'VP cards', value: p.dev?.vp ?? 0 },
+    { label: 'Longest Road', value: game.longestRoad === playerId ? 2 : 0 },
+    { label: 'Largest Army', value: game.largestArmy === playerId ? 2 : 0 },
+  ];
 }
