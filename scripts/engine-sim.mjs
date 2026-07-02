@@ -57,8 +57,9 @@ function checkInvariants(game, board, label) {
 }
 
 for (let g = 0; g < GAMES; g++) {
-  const board = generateBoard();
-  let game = createInitialGame(board, 3 + (g % 2)); // alternate 3 and 4 players
+  // Alternate 3/4 players AND classic/diamond maps to exercise both layouts.
+  const board = generateBoard({ mapId: g % 2 === 0 ? 'classic' : 'diamond' });
+  let game = createInitialGame(board, 3 + (g % 2));
   const apply = (action) => {
     game = gameReducer(game, action, board);
   };

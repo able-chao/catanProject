@@ -2,6 +2,7 @@
 
 import { useGameStore } from '../engine/store.js';
 import { net } from '../net/socket.js';
+import { MAP_LIST } from '../board/maps.js';
 import Chat from './Chat.jsx';
 
 const COLORS = ['#e23b3b', '#3b74e2', '#e2873b', '#dfe3ea'];
@@ -48,6 +49,21 @@ export default function Lobby() {
             </li>
           ))}
         </ul>
+
+        <h2 className="panel__title">Map {isHost ? '' : '(host chooses)'}</h2>
+        <div className="map-pick">
+          {MAP_LIST.map((m) => (
+            <button
+              key={m.id}
+              className={`map-card${room.mapId === m.id ? ' map-card--on' : ''}`}
+              disabled={!isHost}
+              onClick={() => net.setMap(m.id)}
+            >
+              <span className="map-card__name">{m.name}</span>
+              <span className="map-card__tagline">{m.tagline}</span>
+            </button>
+          ))}
+        </div>
 
         <h2 className="panel__title">Your colour</h2>
         <div className="row-gap">

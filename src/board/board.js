@@ -11,17 +11,19 @@
 //   edges:    Map<edgeId, Edge>      road spots
 //   ports:    Map<portId, Port>
 //
-// hexOrder is the one ordered list we keep: hex ids in spiral order, so tiles
-// and tokens can be assigned "in spiral order" as the outline asks.
+// hexOrder is the one ordered list we keep: hex ids in the map's board order
+// (spiral for classic), used when dealing tiles and tokens.
+//
+// The layout itself comes from the map definition (maps.js) — the generator is
+// shape-agnostic and works on any list of axial coordinates.
 // ---------------------------------------------------------------------------
 
-import { hex, hexId, hexSpiral, hexToPixel, hexCorners, hexNeighbors } from '../utils/hex.js';
+import { hexId, hexToPixel, hexCorners, hexNeighbors } from '../utils/hex.js';
 import { mulberry32, randomSeed } from '../utils/random.js';
-import { RESOURCES, TILE_COUNTS, assignTiles } from './tiles.js';
+import { RESOURCES, assignTiles } from './tiles.js';
 import { placeTokens } from './tokens.js';
 import { placePorts } from './ports.js';
-
-const CENTER = hex(0, 0);
+import { getMap } from './maps.js';
 
 // Round to 2dp so corners/edges shared between hexes hash to the same key.
 function pointKey(p) {
@@ -29,13 +31,14 @@ function pointKey(p) {
 }
 
 /**
- * Build the pure geometry (no resources/tokens/ports yet) as flat maps.
- * radius 2 -> the classic 19-hex board, 54 vertices, 72 edges.
+ * Build the pure geometry (no resources/tokens/ports yet) as flat maps from a
+ * list of axial coords. Classic (spiral radius 2) -> 19 hexes, 54 vertices,
+ * 72 edges.
  */
-export function buildGeometry(size, radius) {
+export function buildGeometry(size, coords) {
   const hexes = new Map();
   const hexOrder = [];
-  for (const h of hexSpiral(CENTER, radius)) {
+  for (const h of coords) {
     const id = hexId(h);
     const center = hexToPixel(h, size);
     hexes.set(id, {
@@ -120,19 +123,21 @@ export function buildGeometry(size, radius) {
   for (const e of edges.values()) e.coastal = e.hexIds.length === 1;
   for (const v of vertices.values()) v.coastal = v.hexIds.length < 3;
 
-  return { size, radius, bounds: computeBounds(hexes, size), hexOrder, hexes, vertices, edges };
+  return { size, bounds: computeBounds(hexes, size), hexOrder, hexes, vertices, edges };
 }
 
 /**
  * Generate a complete random board: geometry + terrain + tokens + ports.
- * Pass a `seed` to reproduce a specific board.
+ * `mapId` selects the layout (see maps.js); pass a `seed` to reproduce a
+ * specific board — the same (mapId, seed) pair always yields the same board.
  */
-export function generateBoard({ size = 56, radius = 2, seed = randomSeed() } = {}) {
+export function generateBoard({ mapId = 'classic', size = 56, seed = randomSeed() } = {}) {
+  const map = getMap(mapId);
   const rng = mulberry32(seed);
-  const geometry = buildGeometry(size, radius);
+  const geometry = buildGeometry(size, map.coords);
 
-  // Terrain.
-  const tileByHex = assignTiles(geometry.hexOrder, rng);
+  // Terrain (from the map's tile bag).
+  const tileByHex = assignTiles(geometry.hexOrder, rng, map.tileCounts);
   for (const [id, terrain] of tileByHex) {
     const tile = geometry.hexes.get(id);
     tile.resource = terrain;
@@ -140,7 +145,7 @@ export function generateBoard({ size = 56, radius = 2, seed = randomSeed() } = {
   }
 
   // Number tokens (respecting the 6/8 non-adjacency rule).
-  const { numberByHex, attempts } = placeTokens(geometry.hexOrder, geometry.hexes, rng);
+  const { numberByHex, attempts } = placeTokens(geometry.hexOrder, geometry.hexes, rng, map.tokenNumbers);
   for (const tile of geometry.hexes.values()) {
     tile.token = numberByHex.get(tile.id) ?? null;
   }
@@ -148,7 +153,7 @@ export function generateBoard({ size = 56, radius = 2, seed = randomSeed() } = {
   // Ports.
   const ports = placePorts(geometry, rng);
 
-  return { ...geometry, ports, seed, tokenAttempts: attempts };
+  return { ...geometry, ports, seed, mapId: map.id, tokenAttempts: attempts };
 }
 
 /** Tight pixel bounding box around all hex corners, for the SVG viewBox. */
@@ -193,7 +198,7 @@ export function validateBoard(board) {
   }
   redAdjacencies /= 2; // each adjacency counted from both ends
 
-  const tileCountsOk = Object.entries(TILE_COUNTS).every(
+  const tileCountsOk = Object.entries(getMap(board.mapId).tileCounts).every(
     ([terrain, n]) => resourceCounts[terrain] === n,
   );
 

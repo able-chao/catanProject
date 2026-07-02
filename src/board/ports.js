@@ -29,17 +29,26 @@ const PORT_COUNT = PORT_TYPES.length;
  * @returns {Map<portId, Port>}
  */
 export function placePorts(geometry, rng) {
-  const { edges, vertices, size } = geometry;
+  const { edges, vertices, hexes, size } = geometry;
 
-  // Coastal edges, sorted by angle around the board centre (the centre hex is
-  // at the pixel origin, so atan2 of the edge midpoint orders them around the
-  // ring).
+  // Board centroid — maps aren't necessarily centred on the pixel origin, so
+  // order coastal edges by angle around the actual centre of mass.
+  let cx = 0;
+  let cy = 0;
+  for (const h of hexes.values()) {
+    cx += h.center.x;
+    cy += h.center.y;
+  }
+  cx /= hexes.size;
+  cy /= hexes.size;
+
+  // Coastal edges, sorted by angle around the centroid.
   const coastal = [...edges.values()]
     .filter((e) => e.coastal)
     .map((e) => {
       const mx = (e.x1 + e.x2) / 2;
       const my = (e.y1 + e.y2) / 2;
-      return { edge: e, mx, my, angle: Math.atan2(my, mx) };
+      return { edge: e, mx, my, angle: Math.atan2(my - cy, mx - cx) };
     })
     .sort((a, b) => a.angle - b.angle);
 
@@ -73,16 +82,18 @@ export function placePorts(geometry, rng) {
     .forEach((c, i) => {
       const type = types[i];
       const id = `p${i}`;
-      // Push the marker outward from the board centre along the edge normal.
-      const len = Math.hypot(c.mx, c.my) || 1;
+      // Push the marker outward from the board centroid along the edge normal.
+      const dx = c.mx - cx;
+      const dy = c.my - cy;
+      const len = Math.hypot(dx, dy) || 1;
       const offset = size * 0.62;
       const port = {
         id,
         ...type,
         edgeId: c.edge.id,
         vertexIds: [...c.edge.vertexIds],
-        x: c.mx + (c.mx / len) * offset,
-        y: c.my + (c.my / len) * offset,
+        x: c.mx + (dx / len) * offset,
+        y: c.my + (dy / len) * offset,
       };
       ports.set(id, port);
       c.edge.portId = id;

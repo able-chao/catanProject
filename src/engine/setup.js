@@ -64,10 +64,13 @@ export function createInitialGame(board, playerCount = 4) {
   const forward = players.map((p) => p.id);
   const setupOrder = [...forward, ...forward.slice().reverse()];
 
-  const desert = [...board.hexes.values()].find((h) => h.resource === 'desert');
+  // The robber starts on a non-producing tile — desert on classic, the lake on
+  // maps that have one instead.
+  const robberStart = [...board.hexes.values()].find((h) => h.yields == null);
 
   return {
     seed: board.seed,
+    mapId: board.mapId,
     phase: PHASES.SETUP_FORWARD,
     players,
     currentPlayer: setupOrder[0],
@@ -77,7 +80,7 @@ export function createInitialGame(board, playerCount = 4) {
     lastSettlement: null,
     buildings: {}, // vertexId -> { type: 'settlement' | 'city', player }
     roads: {}, //    edgeId   -> playerId
-    robberHex: desert ? desert.id : board.hexOrder[0],
+    robberHex: robberStart ? robberStart.id : board.hexOrder[0],
     dice: null,
     diceTotal: null,
     rollCount: 0, // increments each roll (drives the dice animation)

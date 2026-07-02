@@ -13,6 +13,7 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 
 import { generateBoard } from '../src/board/board.js';
+import { MAPS, DEFAULT_MAP } from '../src/board/maps.js';
 import { createInitialGame } from '../src/engine/setup.js';
 import { computeValidPlacements } from '../src/engine/building.js';
 import { gameReducer } from '../src/engine/reducer.js';
@@ -55,6 +56,7 @@ function lobbyView(room) {
     code: room.code,
     hostSeat: room.hostSeat,
     started: room.started,
+    mapId: room.mapId,
     players: room.players.map((p) => ({
       seat: p.seat,
       name: p.name,
@@ -145,7 +147,7 @@ function autoAdvance(room) {
 
 io.on('connection', (socket) => {
   socket.on('CREATE_ROOM', ({ name }) => {
-    const room = { code: newCode(), hostSeat: 0, players: [], started: false, board: null, game: null, timer: null };
+    const room = { code: newCode(), hostSeat: 0, players: [], started: false, mapId: DEFAULT_MAP, board: null, game: null, timer: null };
     rooms.set(room.code, room);
     addPlayer(room, socket, name);
     broadcastLobby(room);
@@ -174,6 +176,15 @@ io.on('connection', (socket) => {
     broadcastLobby(room);
   });
 
+  // Host picks the map in the lobby; locked once the game starts.
+  socket.on('SET_MAP', ({ mapId }) => {
+    const { room, player } = ctx(socket);
+    if (!room || room.started || !player || player.seat !== room.hostSeat) return;
+    if (!MAPS[mapId]) return;
+    room.mapId = mapId;
+    broadcastLobby(room);
+  });
+
   socket.on('SET_COLOR', ({ color }) => {
     const { room, player } = ctx(socket);
     if (!room || room.started || !player) return;
@@ -197,7 +208,7 @@ io.on('connection', (socket) => {
       return socket.emit('ERROR_MSG', 'Not everyone is ready');
     }
 
-    const board = generateBoard({ seed: randomSeed() });
+    const board = generateBoard({ seed: randomSeed(), mapId: room.mapId });
     let game = createInitialGame(board, room.players.length);
     // Apply lobby names/colours and seed the placement cache.
     game = {

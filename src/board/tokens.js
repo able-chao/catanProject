@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------------
-// Number tokens (A–R) and their placement.
+// Number tokens and their placement.
 //
 // Critical Catan rule: the "red" tokens — 6 and 8, the highest-probability
 // rolls — may never sit on adjacent hexes. We satisfy it with rejection
-// sampling: shuffle the 18 tokens onto the non-desert hexes, validate, and
-// retry on failure. With only four red tokens among 18 hexes a valid layout is
-// common, so this converges in a handful of attempts. A swap-repair fallback
+// sampling: shuffle the map's token pool onto the producing hexes, validate,
+// and retry on failure. With only a few red tokens a valid layout is common,
+// so this converges in a handful of attempts. A swap-repair fallback
 // guarantees termination.
 // ---------------------------------------------------------------------------
 
@@ -16,18 +16,19 @@ export function pipCount(n) {
   return n === 7 ? 0 : 6 - Math.abs(7 - n);
 }
 
-// The canonical 18 Catan tokens. Letters are the standard labels; the desert
-// gets no token. Counts: one 2 & 12, two each of 3–6 and 8–11. No 7.
-export const NUMBER_TOKENS = [
-  ['A', 5], ['B', 2], ['C', 6], ['D', 3], ['E', 8], ['F', 10],
-  ['G', 9], ['H', 12], ['I', 11], ['J', 4], ['K', 8], ['L', 10],
-  ['M', 9], ['N', 5], ['O', 6], ['P', 3], ['Q', 11], ['R', 4],
-].map(([letter, number]) => ({
-  letter,
-  number,
-  pips: pipCount(number),
-  red: number === 6 || number === 8,
-}));
+/**
+ * Build token objects from a map's number pool. Letters follow the classic
+ * A, B, C… labelling in pool order (A–R for the classic 18, further for
+ * bigger maps). Non-producing tiles (desert, lake) get no token.
+ */
+export function buildTokens(numbers) {
+  return numbers.map((number, i) => ({
+    letter: String.fromCharCode(65 + i),
+    number,
+    pips: pipCount(number),
+    red: number === 6 || number === 8,
+  }));
+}
 
 /** True if no two red (6/8) tokens are on neighbouring hexes. */
 function isValidRedPlacement(numberByHex, hexes) {
@@ -42,15 +43,16 @@ function isValidRedPlacement(numberByHex, hexes) {
 }
 
 /**
- * Assign number tokens to the non-desert hexes (walking spiral order) such that
- * no two red tokens are adjacent.
+ * Assign the map's number tokens to the producing hexes (walking board order)
+ * such that no two red tokens are adjacent. Desert/lake tiles are skipped.
  * @returns {{ numberByHex: Map<hexId, token>, attempts: number }}
  */
-export function placeTokens(hexOrder, hexes, rng, maxAttempts = 1000) {
-  const targets = hexOrder.filter((id) => hexes.get(id).resource !== 'desert');
+export function placeTokens(hexOrder, hexes, rng, tokenNumbers, maxAttempts = 1000) {
+  const targets = hexOrder.filter((id) => hexes.get(id).yields != null);
+  const pool = buildTokens(tokenNumbers);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const tokens = shuffle(NUMBER_TOKENS, rng);
+    const tokens = shuffle(pool, rng);
     const numberByHex = new Map();
     targets.forEach((hexId, i) => numberByHex.set(hexId, tokens[i]));
     if (isValidRedPlacement(numberByHex, hexes)) {
@@ -60,7 +62,7 @@ export function placeTokens(hexOrder, hexes, rng, maxAttempts = 1000) {
 
   // Fallback (extremely unlikely to be reached): repair by swapping any red
   // token that conflicts with a random non-red hex until valid.
-  const tokens = shuffle(NUMBER_TOKENS, rng);
+  const tokens = shuffle(pool, rng);
   const numberByHex = new Map();
   targets.forEach((hexId, i) => numberByHex.set(hexId, tokens[i]));
   repairRedAdjacency(numberByHex, hexes, targets, rng);

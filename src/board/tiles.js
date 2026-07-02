@@ -1,12 +1,15 @@
 // ---------------------------------------------------------------------------
-// Resource tiles: the pool, their metadata, and the Fisher-Yates assignment to
-// hex positions (in spiral order). Phase 2 outline counts:
-//   4 forest, 4 pasture, 4 fields, 3 mountains, 3 hills, 1 desert  (= 19)
+// Resource tiles: terrain metadata and the Fisher-Yates assignment of a map's
+// tile bag to hex positions. The bag comes from the map definition (maps.js) —
+// classic uses 4/4/4/3/3 + 1 desert; other maps swap counts or add terrains
+// like the lake.
 // ---------------------------------------------------------------------------
 
 import { shuffle } from '../utils/random.js';
 
 // Terrain -> { the resource it yields, display info, fill colour }.
+// `yields: null` terrains (desert, lake) produce nothing; the robber starts on
+// one of them.
 export const RESOURCES = {
   forest: { id: 'forest', yields: 'lumber', label: 'Forest', resource: 'Wood', color: '#3f7a34' },
   pasture: { id: 'pasture', yields: 'wool', label: 'Pasture', resource: 'Sheep', color: '#8fbf57' },
@@ -14,34 +17,25 @@ export const RESOURCES = {
   mountains: { id: 'mountains', yields: 'ore', label: 'Mountains', resource: 'Ore', color: '#9aa3ad' },
   hills: { id: 'hills', yields: 'brick', label: 'Hills', resource: 'Brick', color: '#c45a3b' },
   desert: { id: 'desert', yields: null, label: 'Desert', resource: '—', color: '#d8c89a' },
+  lake: { id: 'lake', yields: null, label: 'Lake', resource: '—', color: '#4a8fc0' },
 };
 
-// How many of each terrain go in the bag.
-export const TILE_COUNTS = {
-  forest: 4,
-  pasture: 4,
-  fields: 4,
-  mountains: 3,
-  hills: 3,
-  desert: 1,
-};
-
-/** The 19-tile pool as a flat array of terrain ids, ready to shuffle. */
-export function buildTilePool() {
+/** A map's tile bag as a flat array of terrain ids, ready to shuffle. */
+export function buildTilePool(tileCounts) {
   const pool = [];
-  for (const [terrain, count] of Object.entries(TILE_COUNTS)) {
+  for (const [terrain, count] of Object.entries(tileCounts)) {
     for (let i = 0; i < count; i++) pool.push(terrain);
   }
   return pool;
 }
 
 /**
- * Shuffle the tile pool and assign one terrain to each hex, walking the hexes
- * in spiral order.
+ * Shuffle the map's tile bag and assign one terrain to each hex, walking the
+ * hexes in board order.
  * @returns {Map<hexId, terrainId>}
  */
-export function assignTiles(hexOrder, rng) {
-  const pool = shuffle(buildTilePool(), rng);
+export function assignTiles(hexOrder, rng, tileCounts) {
+  const pool = shuffle(buildTilePool(tileCounts), rng);
   const byHex = new Map();
   hexOrder.forEach((hexId, i) => byHex.set(hexId, pool[i]));
   return byHex;

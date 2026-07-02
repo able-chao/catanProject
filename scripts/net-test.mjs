@@ -3,6 +3,7 @@
 // no dice), action authorization (wrong player rejected), and reconnection.
 //   node scripts/net-test.mjs
 import { io } from 'socket.io-client';
+import { generateBoard } from '../src/board/board.js';
 
 const URL = process.env.SERVER_URL || 'http://localhost:3001';
 let pass = 0, fail = 0;
@@ -42,6 +43,18 @@ async function main() {
   ok('second player joined (seat 1)', B.seat === 1);
   ok('distinct colours assigned', A.lobby.players[0].color !== A.lobby.players[1].color);
 
+  // --- Map selection (host-only, lobby-only) ---
+  ok('room defaults to classic', A.lobby.mapId === 'classic');
+  B.emit('SET_MAP', { mapId: 'diamond' }); // non-host: must be ignored
+  await sleep(150);
+  ok('non-host SET_MAP rejected', A.lobby.mapId === 'classic');
+  A.emit('SET_MAP', { mapId: 'nonsense' }); // unknown map: must be ignored
+  await sleep(150);
+  ok('unknown map rejected', A.lobby.mapId === 'classic');
+  A.emit('SET_MAP', { mapId: 'diamond' });
+  await waitFor(() => A.lobby.mapId === 'diamond' && B.lobby.mapId === 'diamond');
+  ok('host SET_MAP broadcast to both', true);
+
   // --- Start ---
   B.emit('PLAYER_READY');
   await waitFor(() => A.lobby.players[1].ready);
@@ -49,6 +62,12 @@ async function main() {
   await waitFor(() => A.game && B.game);
   ok('GAME_STARTED broadcast to both', A.game.phase === 'SETUP_FORWARD' && B.game.phase === 'SETUP_FORWARD');
   ok('lobby names applied', A.game.players[0].name === 'Alice' && A.game.players[1].name === 'Bob');
+  ok('game uses the selected map', A.game.mapId === 'diamond');
+  // The board never travels over the wire — both clients rebuild it from
+  // (mapId, seed). Verify the rebuild matches what the server validated.
+  const rebuilt = generateBoard({ mapId: A.game.mapId, seed: A.game.seed });
+  ok('diamond board rebuilds from (mapId, seed)', rebuilt.hexes.size === 24 && rebuilt.ports.size === 9);
+  ok('all vertices valid for first settlement', A.game.valid.settlements.length === rebuilt.vertices.size);
 
   // --- Drive setup (snake draft) to reach ROLL ---
   const client = (seat) => (seat === 0 ? A : B);

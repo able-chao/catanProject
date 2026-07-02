@@ -31,6 +31,7 @@ export const net = {
   createRoom: (name) => ensure().emit('CREATE_ROOM', { name }),
   joinRoom: (code, name) => ensure().emit('JOIN_ROOM', { code, name }),
   setColor: (color) => ensure().emit('SET_COLOR', { color }),
+  setMap: (mapId) => ensure().emit('SET_MAP', { mapId }),
   toggleReady: () => ensure().emit('PLAYER_READY'),
   startGame: () => ensure().emit('START_GAME'),
   sendChat: (text) => ensure().emit('CHAT', { text }),

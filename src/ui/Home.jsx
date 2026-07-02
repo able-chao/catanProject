@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { useGameStore } from '../engine/store.js';
 import { net } from '../net/socket.js';
+import { MAP_LIST, DEFAULT_MAP } from '../board/maps.js';
 
 export default function Home() {
   const startLocal = useGameStore((s) => s.startLocal);
   const serverError = useGameStore((s) => s.serverError);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [mapId, setMapId] = useState(DEFAULT_MAP);
 
   const create = () => net.createRoom(name || 'Host');
   const join = () => code.trim() && net.joinRoom(code.trim(), name || 'Player');
@@ -20,9 +22,21 @@ export default function Home() {
         <p className="muted">A networked clone — local or online.</p>
 
         <h2 className="panel__title">Local game</h2>
+        <div className="map-pick">
+          {MAP_LIST.map((m) => (
+            <button
+              key={m.id}
+              className={`map-card${mapId === m.id ? ' map-card--on' : ''}`}
+              onClick={() => setMapId(m.id)}
+            >
+              <span className="map-card__name">{m.name}</span>
+              <span className="map-card__tagline">{m.tagline}</span>
+            </button>
+          ))}
+        </div>
         <div className="row-gap">
-          <button className="btn" onClick={() => startLocal(3)}>3 players</button>
-          <button className="btn" onClick={() => startLocal(4)}>4 players</button>
+          <button className="btn" onClick={() => startLocal(3, mapId)}>3 players</button>
+          <button className="btn" onClick={() => startLocal(4, mapId)}>4 players</button>
         </div>
 
         <h2 className="panel__title">Online game</h2>
