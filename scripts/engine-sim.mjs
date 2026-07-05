@@ -6,7 +6,7 @@ import { createInitialGame, RESOURCE_KEYS, handTotal } from '../src/engine/setup
 import { gameReducer } from '../src/engine/reducer.js';
 import { ACTIONS } from '../src/engine/actions.js';
 import { PHASES, isSetupPhase } from '../src/engine/phases.js';
-import { validSettlementSpots, validRoadSpots } from '../src/engine/rules.js';
+import { validSettlementSpots, validRoadSpots, validRobberHexes } from '../src/engine/rules.js';
 import { SUPPLY_LIMITS } from '../src/engine/building.js';
 
 const GAMES = Number(process.argv[2] ?? 300);
@@ -20,6 +20,8 @@ let discards = 0;
 let steals = 0;
 let builds = 0;
 let wins = 0;
+let goldPicks = 0;
+let fogRevealed = 0;
 
 function fail(msg, game) {
   failures++;
@@ -57,9 +59,11 @@ function checkInvariants(game, board, label) {
 }
 
 for (let g = 0; g < GAMES; g++) {
-  // Alternate 3/4 players AND classic/diamond maps to exercise both layouts.
-  const board = generateBoard({ mapId: g % 2 === 0 ? 'classic' : 'diamond' });
-  let game = createInitialGame(board, 3 + (g % 2));
+  // Alternate 3/4 players AND cycle every map to exercise all layouts.
+  const board = generateBoard({ mapId: ['classic', 'diamond', 'usa', 'volcano', 'earth', 'blackforest'][g % 6] });
+  // Friendly robber on for half the games, layered across every map.
+  let game = createInitialGame(board, 3 + (g % 2), { friendlyRobber: g % 2 === 1 });
+  const fogAtStart = Object.keys(game.fog ?? {}).length;
   const apply = (action) => {
     game = gameReducer(game, action, board);
   };
@@ -97,8 +101,19 @@ for (let g = 0; g < GAMES; g++) {
     checkInvariants(game, board, 'roll');
     if (total === 7 && handsBefore.some((b, i) => handTotal(game.players[i].resources) < b)) discards++;
 
+    // Gold-field payouts block everything until every owed player picks.
+    let gq = 0;
+    while (game.pendingGold?.length && gq++ < 20) {
+      const { count } = game.pendingGold[0];
+      const resources = Array.from({ length: count }, () => pick(RESOURCE_KEYS));
+      apply({ type: ACTIONS.PICK_GOLD, resources });
+      goldPicks++;
+      checkInvariants(game, board, 'gold');
+    }
+    if (game.pendingGold?.length) fail('gold queue stuck', game);
+
     if (game.phase === PHASES.MOVE_ROBBER) {
-      const target = pick([...board.hexes.keys()].filter((id) => id !== game.robberHex));
+      const target = pick(validRobberHexes(game, board));
       apply({ type: ACTIONS.MOVE_ROBBER, hexId: target });
       if (game.pendingSteal) {
         const victim = pick(game.pendingSteal.candidates);
@@ -127,6 +142,8 @@ for (let g = 0; g < GAMES; g++) {
     apply({ type: ACTIONS.END_TURN }); // MAIN -> next ROLL
     checkInvariants(game, board, 'endturn');
   }
+
+  fogRevealed += fogAtStart - Object.keys(game.fog ?? {}).length;
 }
 
 console.log(`Games:            ${GAMES} (alternating 3/4 players)`);
@@ -136,6 +153,8 @@ console.log(`Discards:         ${discards}`);
 console.log(`Steals:           ${steals}`);
 console.log(`Builds:           ${builds}`);
 console.log(`Games won (10VP): ${wins}`);
+console.log(`Gold picks:       ${goldPicks}`);
+console.log(`Fog revealed:     ${fogRevealed}`);
 console.log(`Invariant fails:  ${failures}`);
 console.log(failures === 0 ? '\nPASS — all invariants held.' : '\nFAILURES present.');
 process.exit(failures === 0 ? 0 : 1);

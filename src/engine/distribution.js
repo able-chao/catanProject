@@ -4,8 +4,10 @@ import { RESOURCE_KEYS, emptyHand } from './setup.js';
 
 /**
  * Work out who produces what for a given dice total.
- * Returns new `players` and `bank` plus a `gains` map (playerId -> hand) for
- * logging. Does not mutate the input state.
+ * Returns new `players` and `bank`, a `gains` map (playerId -> hand) for
+ * logging, and `goldOwed` (playerId -> count) — gold fields grant resources of
+ * the owner's CHOICE, resolved by the PICK_GOLD action after the roll.
+ * Does not mutate the input state.
  *
  * Bank-low rule: if the bank can't cover everyone owed a resource, then —
  *  - if exactly one player is owed it, they take whatever remains;
@@ -14,9 +16,11 @@ import { RESOURCE_KEYS, emptyHand } from './setup.js';
 export function distribute(state, board, total) {
   const gains = {};
   const demand = emptyHand();
+  const goldOwed = {};
 
   for (const hex of board.hexes.values()) {
     if (hex.id === state.robberHex) continue; // robber blocks production
+    if (state.fog?.[hex.id]) continue; // unexplored tiles produce nothing
     if (!hex.token || hex.token.number !== total) continue;
     if (!hex.yields) continue; // desert
 
@@ -24,6 +28,10 @@ export function distribute(state, board, total) {
       const building = state.buildings[vid];
       if (!building) continue;
       const amount = building.type === 'city' ? 2 : 1;
+      if (hex.yields === 'gold') {
+        goldOwed[building.player] = (goldOwed[building.player] ?? 0) + amount;
+        continue;
+      }
       (gains[building.player] ??= emptyHand())[hex.yields] += amount;
       demand[hex.yields] += amount;
     }
@@ -51,5 +59,5 @@ export function distribute(state, board, total) {
     return { ...p, resources };
   });
 
-  return { players, bank, gains };
+  return { players, bank, gains, goldOwed };
 }

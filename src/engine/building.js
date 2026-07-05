@@ -39,6 +39,9 @@ export function computeValidPlacements(state, board) {
   const none = { settlements: [], roads: [], cities: [] };
   const player = state.currentPlayer;
 
+  // Gold picks must be resolved before anything else happens.
+  if (state.pendingGold?.length) return none;
+
   // Road Building dev card: place free roads, regardless of TRADE/BUILD phase.
   if (state.pendingRoadBuilding > 0) {
     return { ...none, roads: validRoadSpots(state, board, { setup: false, player }) };

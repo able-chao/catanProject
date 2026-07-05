@@ -23,9 +23,19 @@ for (const mapId of Object.keys(MAPS)) {
     const tokensOk =
       [...board.hexes.values()].filter((h) => h.token).length === map.tokenNumbers.length;
 
-    if (!r.valid || !hexCountOk || !tokensOk) {
+    // Fog/gold maps: deserts must stay revealed; gold sits fixed, visible,
+    // and carries a token.
+    const tiles = [...board.hexes.values()];
+    const fogOk =
+      tiles.filter((h) => h.fog).length === (map.fogCoords?.length ?? 0) &&
+      !tiles.some((h) => h.fog && h.yields == null);
+    const golds = tiles.filter((h) => h.resource === 'gold');
+    const goldOk =
+      golds.length === (map.goldCoords?.length ?? 0) && golds.every((h) => !h.fog && h.token);
+
+    if (!r.valid || !hexCountOk || !tokensOk || !fogOk || !goldOk) {
       mapFailures++;
-      console.error(`FAIL map=${mapId} seed=${board.seed}`, { ...r, hexCountOk, tokensOk });
+      console.error(`FAIL map=${mapId} seed=${board.seed}`, { ...r, hexCountOk, tokensOk, fogOk, goldOk });
     }
   }
 

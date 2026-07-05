@@ -1,6 +1,34 @@
 // Pure placement rules. Used both by the reducer (to reject illegal actions)
 // and by the UI (to highlight legal spots).
 
+import { totalVictoryPoints } from './setup.js';
+
+const FRIENDLY_ROBBER_VP = 3;
+
+/**
+ * Every hex the robber may legally move to: not its current hex, never into
+ * fog, and — with the "friendly robber" option on — never onto a hex adjacent
+ * to a building whose owner is still under 3 victory points.
+ *
+ * Safety valve: right after setup EVERYONE is under 3 VP, so if protection
+ * would leave the robber nowhere to go, the restriction relaxes rather than
+ * stranding the game.
+ */
+export function validRobberHexes(state, board) {
+  const all = [...board.hexes.keys()].filter(
+    (id) => id !== state.robberHex && !state.fog?.[id],
+  );
+  if (!state.options?.friendlyRobber) return all;
+
+  const legal = all.filter((id) =>
+    board.hexes.get(id).vertexIds.every((vid) => {
+      const b = state.buildings[vid];
+      return !b || totalVictoryPoints(state, b.player) >= FRIENDLY_ROBBER_VP;
+    }),
+  );
+  return legal.length ? legal : all;
+}
+
 /** Is this vertex already built on? */
 export function vertexOccupied(state, vertexId) {
   return Boolean(state.buildings[vertexId]);
@@ -20,6 +48,9 @@ export function hasAdjacentBuilding(state, board, vertexId) {
 export function canPlaceSettlement(state, board, vertexId, { setup, player }) {
   if (vertexOccupied(state, vertexId)) return false;
   if (hasAdjacentBuilding(state, board, vertexId)) return false;
+  // Unexplored territory: at least one adjacent hex must be out of the fog.
+  const vtx = board.vertices.get(vertexId);
+  if (vtx.hexIds.every((h) => state.fog?.[h])) return false;
   if (!setup) {
     const v = board.vertices.get(vertexId);
     const connected = v.edgeIds.some((eid) => state.roads[eid] === player);

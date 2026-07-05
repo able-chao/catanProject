@@ -29,4 +29,5 @@ export const ACTIONS = {
   SKIP_ROAD_BUILDING: 'SKIP_ROAD_BUILDING',
   PICK_YEAR_OF_PLENTY: 'PICK_YEAR_OF_PLENTY', // { resources: [r, r] }
   PICK_MONOPOLY: 'PICK_MONOPOLY', //      { resource }
+  PICK_GOLD: 'PICK_GOLD', //              { resources: [r, ...] } (gold-field payout)
 };

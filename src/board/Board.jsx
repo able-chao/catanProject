@@ -3,14 +3,51 @@
 //
 // Placement highlights come straight from the precomputed `game.valid` cache
 // (built once per state change in the reducer). The board never re-validates.
+//
+// A viewBox "camera" provides zoom & pan on every map: wheel (or the +/−
+// buttons) zooms around the cursor, dragging the board pans. A real click and
+// a pan are disambiguated by a small movement threshold — if the pointer
+// travelled, the following click is swallowed so you never build by accident.
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../engine/store.js';
 import Hexagon from './Hexagon.jsx';
 import { PHASES, isSetupPhase } from '../engine/phases.js';
+import { validRobberHexes } from '../engine/rules.js';
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const EMPTY = { settlements: [], roads: [], cities: [] };
+
+const MAX_ZOOM = 8;
+const PAN_THRESHOLD_PX = 5;
+
+/** Screen (client) coords -> SVG user coords under the current viewBox. */
+function toSvgPoint(svg, clientX, clientY) {
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+/** Keep the camera inside the board and between 1× and MAX_ZOOM×. */
+function clampView(v, fit) {
+  const w = Math.min(Math.max(v.w, fit.w / MAX_ZOOM), fit.w);
+  const h = w * (fit.h / fit.w);
+  return {
+    x: Math.min(Math.max(v.x, fit.x), fit.x + fit.w - w),
+    y: Math.min(Math.max(v.y, fit.y), fit.y + fit.h - h),
+    w,
+    h,
+  };
+}
+
+/** Zoom by factor k, keeping the SVG point (cx, cy) fixed on screen. */
+function zoomView(v, fit, k, cx, cy) {
+  return clampView(
+    { x: cx - (cx - v.x) / k, y: cy - (cy - v.y) / k, w: v.w / k, h: v.h / k },
+    fit,
+  );
+}
 
 export default function Board() {
   const board = useGameStore((s) => s.board);
@@ -28,7 +65,7 @@ export default function Board() {
 
   const size = board.size;
   const { bounds } = board;
-  const viewBox = `${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`;
+  const fit = { x: bounds.minX, y: bounds.minY, w: bounds.width, h: bounds.height };
   const hexes = [...board.hexes.values()];
   const ports = [...board.ports.values()];
   const colorOf = (pid) => game.players[pid].color;
@@ -41,21 +78,101 @@ export default function Board() {
   const robberMode = game.phase === PHASES.MOVE_ROBBER;
   const canRobber = robberMode && canAct;
   const robberHex = board.hexes.get(game.robberHex);
+  // Legal robber destinations (excludes fog and friendly-robber-protected hexes).
+  const robberSpots = canRobber ? new Set(validRobberHexes(game, board)) : null;
 
-  // Draggable robber pawn that snaps to the nearest hex centre on release.
   const svgRef = useRef(null);
-  const [drag, setDrag] = useState(null);
-  const toSvg = (e) => {
-    const pt = svgRef.current.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
-    return pt.matrixTransform(svgRef.current.getScreenCTM().inverse());
+
+  // --- Camera (zoom & pan) ---------------------------------------------------
+  // View state is keyed to the board so a new game/map starts fitted; null
+  // means "fit the whole board".
+  const [camera, setCamera] = useState({ board: null, view: null });
+  const view = camera.board === board ? camera.view : null;
+  const vb = view ?? fit;
+  const zoomed = vb.w < fit.w - 0.5;
+  const setView = (next) =>
+    setCamera((c) => ({
+      board,
+      view: typeof next === 'function' ? next(c.board === board ? c.view : null) : next,
+    }));
+
+  const zoomButtons = (k) =>
+    setView((v0) => {
+      const v = v0 ?? fit;
+      return zoomView(v, fit, k, v.x + v.w / 2, v.y + v.h / 2);
+    });
+
+  // Wheel zoom needs a NON-passive listener (React's synthetic wheel can't
+  // preventDefault), so attach natively per board.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const fitBox = {
+      x: board.bounds.minX,
+      y: board.bounds.minY,
+      w: board.bounds.width,
+      h: board.bounds.height,
+    };
+    const onWheel = (e) => {
+      e.preventDefault();
+      const k = Math.exp(-e.deltaY * 0.002);
+      const p = toSvgPoint(svg, e.clientX, e.clientY);
+      setCamera((c) => {
+        const v = (c.board === board ? c.view : null) ?? fitBox;
+        return { board, view: zoomView(v, fitBox, k, p.x, p.y) };
+      });
+    };
+    svg.addEventListener('wheel', onWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', onWheel);
+  }, [board]);
+
+  // Drag-to-pan. Starts on any pointer press that isn't the draggable robber;
+  // becomes a pan only after PAN_THRESHOLD_PX, and then swallows the click.
+  const panRef = useRef(null);
+  const suppressClickRef = useRef(false);
+
+  const onPanDown = (e) => {
+    if (e.target.closest?.('.robber--draggable')) return; // robber owns its drag
+    panRef.current = { px: e.clientX, py: e.clientY, view0: vb, panned: false, id: e.pointerId };
   };
+  const onPanMove = (e) => {
+    const p = panRef.current;
+    if (!p) return;
+    if (e.buttons === 0) { panRef.current = null; return; } // button released off-board
+    const dx = e.clientX - p.px;
+    const dy = e.clientY - p.py;
+    if (!p.panned) {
+      if (Math.hypot(dx, dy) < PAN_THRESHOLD_PX) return;
+      p.panned = true;
+      svgRef.current.setPointerCapture?.(p.id);
+    }
+    const scale = p.view0.w / svgRef.current.getBoundingClientRect().width;
+    setView(
+      clampView(
+        { x: p.view0.x - dx * scale, y: p.view0.y - dy * scale, w: p.view0.w, h: p.view0.h },
+        fit,
+      ),
+    );
+  };
+  const onPanUp = () => {
+    suppressClickRef.current = Boolean(panRef.current?.panned);
+    panRef.current = null;
+  };
+  const onClickCapture = (e) => {
+    if (suppressClickRef.current) {
+      e.stopPropagation();
+      suppressClickRef.current = false;
+    }
+  };
+
+  // --- Robber drag (snaps to the nearest hex centre on release) --------------
+  const [drag, setDrag] = useState(null);
+  const toSvg = (e) => toSvgPoint(svgRef.current, e.clientX, e.clientY);
   const nearestHex = (x, y) => {
     let best = null;
     let bestD = Infinity;
     for (const h of hexes) {
-      if (h.id === game.robberHex) continue;
+      if (!robberSpots?.has(h.id)) continue; // only snap to legal destinations
       const d = (h.center.x - x) ** 2 + (h.center.y - y) ** 2;
       if (d < bestD) { bestD = d; best = h; }
     }
@@ -68,19 +185,31 @@ export default function Board() {
   const onRoad = game.pendingRoadBuilding > 0 ? placeFreeRoad : setup ? placeRoad : buildRoad;
 
   return (
-    <svg ref={svgRef} className="board" viewBox={viewBox} role="img" aria-label="Catan board">
+    <div className="board-wrap">
+      <svg
+        ref={svgRef}
+        className={`board${zoomed ? ' board--zoomed' : ''}`}
+        viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
+        role="img"
+        aria-label="Catan board"
+        onPointerDown={onPanDown}
+        onPointerMove={onPanMove}
+        onPointerUp={onPanUp}
+        onPointerCancel={onPanUp}
+        onClickCapture={onClickCapture}
+      >
       <rect className="board__sea" x={bounds.minX} y={bounds.minY} width={bounds.width} height={bounds.height} rx={size * 0.5} />
 
       {/* Ports (static, Phase 2) */}
       <g className="board__ports">
         {ports.map((port) => {
           const va = board.vertices.get(port.vertexIds[0]);
-          const vb = board.vertices.get(port.vertexIds[1]);
+          const vb2 = board.vertices.get(port.vertexIds[1]);
           return (
             <g className="port" key={port.id}>
               <title>{port.label}</title>
               <line className="port__link" x1={port.x} y1={port.y} x2={va.x} y2={va.y} />
-              <line className="port__link" x1={port.x} y1={port.y} x2={vb.x} y2={vb.y} />
+              <line className="port__link" x1={port.x} y1={port.y} x2={vb2.x} y2={vb2.y} />
               <circle className="port__disc" cx={port.x} cy={port.y} r={size * 0.24} fill={port.color} />
               <text className="port__ratio" x={port.x} y={port.y} textAnchor="middle" dominantBaseline="central">
                 {port.ratio}:1
@@ -90,10 +219,10 @@ export default function Board() {
         })}
       </g>
 
-      {/* Terrain + number tokens */}
+      {/* Terrain + number tokens (fog hides unexplored tiles) */}
       <g className="board__hexes">
         {hexes.map((tile) => (
-          <Hexagon key={tile.id} tile={tile} showCoords={show.coords} />
+          <Hexagon key={tile.id} tile={tile} showCoords={show.coords} fogged={Boolean(game.fog?.[tile.id])} />
         ))}
       </g>
 
@@ -161,7 +290,7 @@ export default function Board() {
 
       {canRobber &&
         hexes
-          .filter((h) => h.id !== game.robberHex)
+          .filter((h) => robberSpots.has(h.id))
           .map((h) => (
             <polygon
               key={`rt-${h.id}`}
@@ -236,7 +365,16 @@ export default function Board() {
           ))}
         </g>
       )}
-    </svg>
+      </svg>
+
+      {/* Camera controls */}
+      <div className="board-zoom">
+        <span className="board-zoom__level">{(fit.w / vb.w).toFixed(1)}×</span>
+        <button className="chip-btn" title="Zoom in" onClick={() => zoomButtons(1.5)}>＋</button>
+        <button className="chip-btn" title="Zoom out" disabled={!zoomed} onClick={() => zoomButtons(1 / 1.5)}>−</button>
+        <button className="chip-btn" title="Fit board" disabled={!zoomed} onClick={() => setView(null)}>⤢</button>
+      </div>
+    </div>
   );
 }
 

@@ -23,7 +23,7 @@ import { mulberry32, randomSeed } from '../utils/random.js';
 import { RESOURCES, assignTiles } from './tiles.js';
 import { placeTokens } from './tokens.js';
 import { placePorts } from './ports.js';
-import { getMap } from './maps.js';
+import { getMap, portTotal } from './maps.js';
 
 // Round to 2dp so corners/edges shared between hexes hash to the same key.
 function pointKey(p) {
@@ -136,12 +136,50 @@ export function generateBoard({ mapId = 'classic', size = 56, seed = randomSeed(
   const rng = mulberry32(seed);
   const geometry = buildGeometry(size, map.coords);
 
-  // Terrain (from the map's tile bag).
-  const tileByHex = assignTiles(geometry.hexOrder, rng, map.tileCounts);
+  // Fixed terrain first: gold fields sit at map-defined positions and are
+  // never part of the shuffled bag.
+  const goldIds = new Set((map.goldCoords ?? []).map((c) => hexId(c)));
+  for (const id of goldIds) {
+    const tile = geometry.hexes.get(id);
+    tile.resource = 'gold';
+    tile.yields = RESOURCES.gold.yields;
+  }
+
+  // Other fixed terrain (e.g. Black Forest's tree line) — also outside the bag.
+  const forestIds = new Set((map.forestCoords ?? []).map((c) => hexId(c)));
+  for (const id of forestIds) {
+    const tile = geometry.hexes.get(id);
+    tile.resource = 'forest';
+    tile.yields = RESOURCES.forest.yields;
+  }
+
+  // Terrain for everything else (from the map's tile bag).
+  const bagTargets = geometry.hexOrder.filter((id) => !goldIds.has(id) && !forestIds.has(id));
+  const tileByHex = assignTiles(bagTargets, rng, map.tileCounts);
   for (const [id, terrain] of tileByHex) {
     const tile = geometry.hexes.get(id);
     tile.resource = terrain;
     tile.yields = RESOURCES[terrain].yields;
+  }
+
+  // Fog overlay. A desert hidden under fog would strand the robber's start
+  // (and make a dull reveal), so swap any fogged desert with a revealed
+  // producing tile before tokens are placed.
+  const fogIds = new Set((map.fogCoords ?? []).map((c) => hexId(c)));
+  if (fogIds.size) {
+    const openProducing = geometry.hexOrder.filter((id) => {
+      const t = geometry.hexes.get(id);
+      return !fogIds.has(id) && !goldIds.has(id) && t.yields != null;
+    });
+    for (const id of geometry.hexOrder) {
+      const tile = geometry.hexes.get(id);
+      if (!fogIds.has(id) || tile.yields != null) continue;
+      const swapId = openProducing.splice(Math.floor(rng() * openProducing.length), 1)[0];
+      const open = geometry.hexes.get(swapId);
+      [tile.resource, open.resource] = [open.resource, tile.resource];
+      [tile.yields, open.yields] = [open.yields, tile.yields];
+    }
+    for (const id of fogIds) geometry.hexes.get(id).fog = true;
   }
 
   // Number tokens (respecting the 6/8 non-adjacency rule).
@@ -151,7 +189,7 @@ export function generateBoard({ mapId = 'classic', size = 56, seed = randomSeed(
   }
 
   // Ports.
-  const ports = placePorts(geometry, rng);
+  const ports = placePorts(geometry, rng, map.portCounts, map.portZone);
 
   return { ...geometry, ports, seed, mapId: map.id, tokenAttempts: attempts };
 }
@@ -198,9 +236,11 @@ export function validateBoard(board) {
   }
   redAdjacencies /= 2; // each adjacency counted from both ends
 
-  const tileCountsOk = Object.entries(getMap(board.mapId).tileCounts).every(
+  const map = getMap(board.mapId);
+  const tileCountsOk = Object.entries(map.tileCounts).every(
     ([terrain, n]) => resourceCounts[terrain] === n,
   );
+  const expectedPorts = portTotal(map);
 
   return {
     resourceCounts,
@@ -208,6 +248,6 @@ export function validateBoard(board) {
     redAdjacencies,
     tileCountsOk,
     portCount: board.ports.size,
-    valid: redAdjacencies === 0 && tileCountsOk && board.ports.size === 9,
+    valid: redAdjacencies === 0 && tileCountsOk && board.ports.size === expectedPorts,
   };
 }

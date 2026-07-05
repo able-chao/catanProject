@@ -17,9 +17,9 @@ import { ACTIONS } from './actions.js';
 
 const HISTORY_LIMIT = 100;
 
-function freshGame(playerCount, mapId = 'classic') {
+function freshGame(playerCount, mapId = 'classic', options = {}) {
   const board = generateBoard({ mapId });
-  const game = createInitialGame(board, playerCount);
+  const game = createInitialGame(board, playerCount, options);
   return { board, game: { ...game, valid: computeValidPlacements(game, board) }, history: [] };
 }
 
@@ -43,11 +43,13 @@ export const useGameStore = create((set, get) => ({
   toggle: (key) => set((s) => ({ show: { ...s.show, [key]: !s.show[key] } })),
 
   // --- local lifecycle ---
-  startLocal: (playerCount = 4, mapId = 'classic') =>
-    set({ ...freshGame(playerCount, mapId), mode: 'local', view: 'game', mySeat: null, room: null }),
-  // New game keeps the current map unless told otherwise.
+  startLocal: (playerCount = 4, mapId = 'classic', options = {}) =>
+    set({ ...freshGame(playerCount, mapId, options), mode: 'local', view: 'game', mySeat: null, room: null }),
+  // New game keeps the current map and options unless told otherwise.
   newGame: (playerCount) =>
-    set((s) => freshGame(playerCount ?? s.game?.players.length ?? 4, s.game?.mapId ?? 'classic')),
+    set((s) =>
+      freshGame(playerCount ?? s.game?.players.length ?? 4, s.game?.mapId ?? 'classic', s.game?.options ?? {}),
+    ),
   backToHome: () =>
     set({ view: 'home', mode: 'local', game: null, board: null, room: null, mySeat: null, chat: [], history: [] }),
 
@@ -90,6 +92,7 @@ export const useGameStore = create((set, get) => ({
   pickYearOfPlenty: (resources) => get().submit({ type: ACTIONS.PICK_YEAR_OF_PLENTY, resources }),
   playMonopoly: () => get().submit({ type: ACTIONS.PLAY_MONOPOLY }),
   pickMonopoly: (resource) => get().submit({ type: ACTIONS.PICK_MONOPOLY, resource }),
+  pickGold: (resources) => get().submit({ type: ACTIONS.PICK_GOLD, resources }),
 
   undo: () =>
     set((s) => {

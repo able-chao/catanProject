@@ -55,6 +55,14 @@ async function main() {
   await waitFor(() => A.lobby.mapId === 'diamond' && B.lobby.mapId === 'diamond');
   ok('host SET_MAP broadcast to both', true);
 
+  // --- Game options (host-only) ---
+  B.emit('SET_OPTIONS', { options: { friendlyRobber: true } }); // non-host: ignored
+  await sleep(150);
+  ok('non-host SET_OPTIONS rejected', !A.lobby.options?.friendlyRobber);
+  A.emit('SET_OPTIONS', { options: { friendlyRobber: true } });
+  await waitFor(() => A.lobby.options?.friendlyRobber && B.lobby.options?.friendlyRobber);
+  ok('host SET_OPTIONS broadcast to both', true);
+
   // --- Start ---
   B.emit('PLAYER_READY');
   await waitFor(() => A.lobby.players[1].ready);
@@ -63,6 +71,7 @@ async function main() {
   ok('GAME_STARTED broadcast to both', A.game.phase === 'SETUP_FORWARD' && B.game.phase === 'SETUP_FORWARD');
   ok('lobby names applied', A.game.players[0].name === 'Alice' && A.game.players[1].name === 'Bob');
   ok('game uses the selected map', A.game.mapId === 'diamond');
+  ok('game carries the lobby options', A.game.options?.friendlyRobber === true);
   // The board never travels over the wire — both clients rebuild it from
   // (mapId, seed). Verify the rebuild matches what the server validated.
   const rebuilt = generateBoard({ mapId: A.game.mapId, seed: A.game.seed });

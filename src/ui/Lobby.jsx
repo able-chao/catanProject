@@ -65,6 +65,17 @@ export default function Lobby() {
           ))}
         </div>
 
+        <h2 className="panel__title">Options {isHost ? '' : '(host chooses)'}</h2>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={Boolean(room.options?.friendlyRobber)}
+            disabled={!isHost}
+            onChange={(e) => net.setOptions({ friendlyRobber: e.target.checked })}
+          />
+          <span>Friendly robber — players under 3 VP can't be robbed</span>
+        </label>
+
         <h2 className="panel__title">Your colour</h2>
         <div className="row-gap">
           {COLORS.map((c) => (

@@ -16,6 +16,7 @@ import { generateBoard } from '../src/board/board.js';
 import { MAPS, DEFAULT_MAP } from '../src/board/maps.js';
 import { createInitialGame } from '../src/engine/setup.js';
 import { computeValidPlacements } from '../src/engine/building.js';
+import { validRobberHexes } from '../src/engine/rules.js';
 import { gameReducer } from '../src/engine/reducer.js';
 import { enrichAction } from '../src/engine/enrich.js';
 import { ACTIONS } from '../src/engine/actions.js';
@@ -57,6 +58,7 @@ function lobbyView(room) {
     hostSeat: room.hostSeat,
     started: room.started,
     mapId: room.mapId,
+    options: room.options,
     players: room.players.map((p) => ({
       seat: p.seat,
       name: p.name,
@@ -103,6 +105,10 @@ function actorSeat(action, game) {
     case ACTIONS.ACCEPT_TRADE:
     case ACTIONS.DECLINE_TRADE:
       return action.playerId;
+    case ACTIONS.PICK_GOLD:
+      // Gold picks belong to whoever is at the front of the queue, which may
+      // not be the player whose turn it is.
+      return game.pendingGold?.[0]?.player ?? game.currentPlayer;
     default:
       return game.currentPlayer;
   }
@@ -118,22 +124,31 @@ function applyAction(room, action) {
   return true;
 }
 
-// Keep the game moving if the player whose turn it is has disconnected.
+/** The seat the game is currently waiting on (gold picks jump the queue). */
+function waitingSeat(g) {
+  return g.pendingGold?.length ? g.pendingGold[0].player : g.currentPlayer;
+}
+
+// Keep the game moving if the player being waited on has disconnected.
 function scheduleTimeout(room) {
   clearTimeout(room.timer);
   if (!room.started || room.game.phase === PHASES.GAME_OVER) return;
-  const current = room.players.find((p) => p.seat === room.game.currentPlayer);
-  if (!current || current.connected) return;
+  const actor = room.players.find((p) => p.seat === waitingSeat(room.game));
+  if (!actor || actor.connected) return;
   room.timer = setTimeout(() => autoAdvance(room), TURN_TIMEOUT_MS);
 }
 
 function autoAction(g, board) {
+  // Outstanding gold picks block everything else — auto-pick for the absentee.
+  if (g.pendingGold?.length) {
+    return { type: ACTIONS.PICK_GOLD, resources: Array(g.pendingGold[0].count).fill('lumber') };
+  }
   if (g.phase === PHASES.ROLL) return { type: ACTIONS.ROLL_DICE };
   if (g.phase === PHASES.MAIN) return { type: ACTIONS.END_TURN };
   if (g.phase === PHASES.MOVE_ROBBER) {
     return g.pendingSteal
       ? { type: ACTIONS.STEAL, fromPlayer: g.pendingSteal.candidates[0] }
-      : { type: ACTIONS.MOVE_ROBBER, hexId: [...board.hexes.keys()].find((id) => id !== g.robberHex) };
+      : { type: ACTIONS.MOVE_ROBBER, hexId: validRobberHexes(g, board)[0] };
   }
   return null; // setup needs real placement; just wait
 }
@@ -147,7 +162,7 @@ function autoAdvance(room) {
 
 io.on('connection', (socket) => {
   socket.on('CREATE_ROOM', ({ name }) => {
-    const room = { code: newCode(), hostSeat: 0, players: [], started: false, mapId: DEFAULT_MAP, board: null, game: null, timer: null };
+    const room = { code: newCode(), hostSeat: 0, players: [], started: false, mapId: DEFAULT_MAP, options: { friendlyRobber: false }, board: null, game: null, timer: null };
     rooms.set(room.code, room);
     addPlayer(room, socket, name);
     broadcastLobby(room);
@@ -185,6 +200,14 @@ io.on('connection', (socket) => {
     broadcastLobby(room);
   });
 
+  socket.on('SET_OPTIONS', ({ options }) => {
+    const { room, player } = ctx(socket);
+    if (!room || room.started || !player || player.seat !== room.hostSeat) return;
+    // Whitelist known options — never trust a raw client object.
+    room.options = { friendlyRobber: Boolean(options?.friendlyRobber) };
+    broadcastLobby(room);
+  });
+
   socket.on('SET_COLOR', ({ color }) => {
     const { room, player } = ctx(socket);
     if (!room || room.started || !player) return;
@@ -209,7 +232,7 @@ io.on('connection', (socket) => {
     }
 
     const board = generateBoard({ seed: randomSeed(), mapId: room.mapId });
-    let game = createInitialGame(board, room.players.length);
+    let game = createInitialGame(board, room.players.length, room.options);
     // Apply lobby names/colours and seed the placement cache.
     game = {
       ...game,

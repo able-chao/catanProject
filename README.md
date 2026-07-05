@@ -16,14 +16,34 @@ Built in 7 phases — all complete:
 | **6. UI & Polish** | Player HUDs, color-coded log, animations, win screen | ✅ |
 | **7. Multiplayer** | Real-time networked play via Socket.io | ✅ |
 
+## Maps
+
+Five maps, all defined as data (and ASCII art) in `src/board/maps.js`. Local
+play picks the map on the home screen; online, **the host selects the map in
+the lobby** (locked once the game starts).
+
+| Map | Size | Twist |
+| --- | ---- | ----- |
+| **Classic** | 19 hexes · 9 ports | The standard board: 1 desert, tokens A–R. |
+| **Diamond** | 24 hexes · 9 ports | A leaning rhombus with a **lake** — a non-producing water tile where the robber starts. |
+| **USA** | 144 hexes · 25 ports | The continental United States, coast to coast — every port kind including 2:1 brick. |
+| **Volcano** | 75 hexes · 11 ports | **Fog of war**: an X of clouds hides the island's heart. A road touching a fog tile reveals it. The visible **gold field** at the centre pays resources **of your choice** (2 for a city). |
+| **Earth** | 81 hexes · 27 ports | The world as **7 islands**. Roads can't cross water — claim a second continent with your other starting settlement. |
+| **Black Forest** | 55 hexes · 9 ports | Deep woods around a lagoon: the visible world is almost all **forest**, every other resource hides in the **fog** frontier. Ports ring the lagoon, and the **gold isle** at the centre can only be claimed during setup. |
+
+## Game options
+
+- **Friendly robber** — while a player has fewer than 3 victory points, the
+  robber cannot be placed on any hex touching their buildings; once they reach
+  3 VP the protection lifts. (If every hex is protected — e.g. right after
+  setup — the rule relaxes so the robber always has somewhere to go.) Toggle it
+  on the home screen for local games; online, the host sets it in the lobby.
+
 ## Features
 
-- **Multiple maps**, defined in `src/board/maps.js`:
-  - **Classic** — the standard 19-hex hexagon, 9 ports, 1 desert.
-  - **Diamond** — a 24-hex rhombus, 9 ports, and a **lake** (a non-producing
-    water tile where the robber starts).
-  - Local play picks the map on the home screen; online, **the host selects the
-    map in the lobby** (locked once the game starts).
+- **Zoom & pan** on every board — scroll (or the +/− buttons) to zoom around
+  the cursor, drag to pan, ⤢ to fit. Essential on the big maps; a drag never
+  triggers an accidental build.
 - Flat-top hexagons on cube coordinates, with number tokens (no two red 6/8
   adjacent) and ports generated for any map shape.
 - Full rules: snake-draft setup, 2d6 production with bank-low handling, the

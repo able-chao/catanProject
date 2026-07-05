@@ -11,6 +11,7 @@ export default function Home() {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [mapId, setMapId] = useState(DEFAULT_MAP);
+  const [friendlyRobber, setFriendlyRobber] = useState(false);
 
   const create = () => net.createRoom(name || 'Host');
   const join = () => code.trim() && net.joinRoom(code.trim(), name || 'Player');
@@ -34,9 +35,17 @@ export default function Home() {
             </button>
           ))}
         </div>
+        <label className="toggle home__option">
+          <input
+            type="checkbox"
+            checked={friendlyRobber}
+            onChange={(e) => setFriendlyRobber(e.target.checked)}
+          />
+          <span>Friendly robber — players under 3 VP can't be robbed</span>
+        </label>
         <div className="row-gap">
-          <button className="btn" onClick={() => startLocal(3, mapId)}>3 players</button>
-          <button className="btn" onClick={() => startLocal(4, mapId)}>4 players</button>
+          <button className="btn" onClick={() => startLocal(3, mapId, { friendlyRobber })}>3 players</button>
+          <button className="btn" onClick={() => startLocal(4, mapId, { friendlyRobber })}>4 players</button>
         </div>
 
         <h2 className="panel__title">Online game</h2>

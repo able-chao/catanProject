@@ -31,7 +31,11 @@ export default function TradePanel() {
   const [cGive, setCGive] = useState({});
   const [cWant, setCWant] = useState({});
 
-  const busy = game.pendingRoadBuilding > 0 || game.pendingYearOfPlenty || game.pendingMonopoly;
+  const busy =
+    game.pendingRoadBuilding > 0 ||
+    game.pendingYearOfPlenty ||
+    game.pendingMonopoly ||
+    Boolean(game.pendingGold?.length);
   if (game.phase !== PHASES.MAIN || busy) return null;
 
   const cp = game.currentPlayer;

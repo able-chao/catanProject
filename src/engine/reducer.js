@@ -11,12 +11,13 @@
 import { PHASES, isSetupPhase } from './phases.js';
 import { ACTIONS } from './actions.js';
 import { RESOURCE_KEYS, RESOURCE_LABEL, emptyHand, handTotal, logEntry, totalVictoryPoints } from './setup.js';
-import { canPlaceSettlement, canPlaceRoad } from './rules.js';
+import { canPlaceSettlement, canPlaceRoad, validRobberHexes } from './rules.js';
 import { distribute } from './distribution.js';
 import { BUILD_COSTS, computeValidPlacements } from './building.js';
 import { DEV_COST, emptyDevHand } from './devcards.js';
 import { tradeRates, offerIsValid, hasBundle } from './trade.js';
 import { awardLongestRoad } from './longestRoad.js';
+import { RESOURCES } from '../board/tiles.js';
 
 const WIN_VP = 10;
 const DISCARD_LIMIT = 7;
@@ -78,6 +79,8 @@ function route(state, action, board) {
       return playMonopoly(state);
     case ACTIONS.PICK_MONOPOLY:
       return pickMonopoly(state, action.resource);
+    case ACTIONS.PICK_GOLD:
+      return pickGold(state, action.resources);
     default:
       return state;
   }
@@ -132,6 +135,26 @@ function maybeWin(state) {
   return state;
 }
 
+/**
+ * Fog exploration: a road placed on `edgeId` reveals every fog hex touching
+ * that edge. Works for setup roads, bought roads and Road Building alike.
+ */
+function revealFog(state, board, edgeId) {
+  if (!state.fog) return state;
+  const hidden = board.edges.get(edgeId).hexIds.filter((h) => state.fog[h]);
+  if (!hidden.length) return state;
+  const fog = { ...state.fog };
+  for (const h of hidden) delete fog[h];
+  let next = { ...state, fog };
+  for (const h of hidden) {
+    const tile = board.hexes.get(h);
+    const what = RESOURCES[tile.resource]?.label ?? tile.resource;
+    const num = tile.token ? ` (${tile.token.number})` : '';
+    next = log(next, `${playerName(state, state.currentPlayer)} explored ${what}${num}`);
+  }
+  return next;
+}
+
 /** Re-award Largest Army (3+ knights, strict lead) to the current player. */
 function withLargestArmy(state) {
   const p = state.currentPlayer;
@@ -170,7 +193,8 @@ function placeSettlement(state, board, vertexId) {
     const grants = emptyHand();
     for (const hid of board.vertices.get(vertexId).hexIds) {
       const hex = board.hexes.get(hid);
-      if (hex.yields) grants[hex.yields] += 1;
+      // Hidden (fog) tiles grant nothing; gold has no fixed resource to grant.
+      if (hex.yields && hex.yields !== 'gold' && !next.fog?.[hid]) grants[hex.yields] += 1;
     }
     next = grantFromBank(next, player, grants);
     if (handTotal(grants) > 0) next = log(next, `${playerName(state, player)} collects starting resources`);
@@ -187,6 +211,7 @@ function placeRoad(state, board, edgeId) {
 
   let next = { ...state, roads: { ...state.roads, [edgeId]: player } };
   next = updatePlayer(next, player, (p) => ({ ...p, roads: p.roads + 1 }));
+  next = revealFog(next, board, edgeId);
   next = { ...next, awaitingRoad: false, lastSettlement: null };
   return advanceSetup(next);
 }
@@ -211,6 +236,7 @@ function buildRoad(state, board, edgeId) {
   next = { ...next, roads: { ...next.roads, [edgeId]: player } };
   next = updatePlayer(next, player, (p) => ({ ...p, roads: p.roads + 1 }));
   next = log(next, `${playerName(state, player)} built a road`);
+  next = revealFog(next, board, edgeId);
   return withLongestRoad(next, board);
 }
 
@@ -236,7 +262,7 @@ function buildCity(state, vertexId) {
 // --- trading ---------------------------------------------------------------
 
 function bankTrade(state, board, give, get) {
-  if (state.phase !== PHASES.MAIN || state.pendingTrade) return state;
+  if (state.phase !== PHASES.MAIN || state.pendingTrade || state.pendingGold?.length) return state;
   const p = state.currentPlayer;
   const rate = tradeRates(state, board, p)[give];
   if (state.players[p].resources[give] < rate || state.bank[get] < 1) return state;
@@ -249,7 +275,7 @@ function bankTrade(state, board, give, get) {
 }
 
 function proposeTrade(state, { from, to, give, want }) {
-  if (state.phase !== PHASES.MAIN) return state;
+  if (state.phase !== PHASES.MAIN || state.pendingGold?.length) return state;
   // The active player broadcasts (to=null); a responder may counter back to them.
   const validFrom = from === state.currentPlayer || (to === state.currentPlayer && from !== state.currentPlayer);
   if (!validFrom) return state;
@@ -282,6 +308,7 @@ function declineTrade(state, playerId) {
 function canPlayDev(state) {
   return (
     state.phase === PHASES.MAIN &&
+    !state.pendingGold?.length &&
     !state.playedDevThisTurn &&
     state.pendingRoadBuilding === 0 &&
     !state.pendingYearOfPlenty &&
@@ -294,7 +321,7 @@ const playableCount = (state, type) =>
   state.players[state.currentPlayer].dev[type] - state.devBought[type];
 
 function buyDev(state) {
-  if (state.phase !== PHASES.MAIN || state.pendingTrade) return state;
+  if (state.phase !== PHASES.MAIN || state.pendingTrade || state.pendingGold?.length) return state;
   const p = state.currentPlayer;
   if (state.devDeck.length === 0 || !hasBundle(state.players[p].resources, DEV_COST)) return state;
   const deck = state.devDeck.slice();
@@ -328,6 +355,7 @@ function placeFreeRoad(state, board, edgeId) {
   let next = { ...state, roads: { ...state.roads, [edgeId]: p }, pendingRoadBuilding: state.pendingRoadBuilding - 1 };
   next = updatePlayer(next, p, (pl) => ({ ...pl, roads: pl.roads + 1 }));
   next = log(next, `${playerName(state, p)} placed a free road`);
+  next = revealFog(next, board, edgeId);
   return withLongestRoad(next, board);
 }
 
@@ -386,11 +414,35 @@ function rollDice(state, board, dice) {
     return { ...next, phase: PHASES.MOVE_ROBBER, robberReturnPhase: PHASES.MAIN, robberFromKnight: false };
   }
 
-  const { players, bank, gains } = distribute(next, board, total);
+  const { players, bank, gains, goldOwed } = distribute(next, board, total);
   next = { ...next, players, bank };
   const produced = Object.entries(gains).filter(([, g]) => handTotal(g) > 0).map(([pid, g]) => `${players[pid].name} +${handTotal(g)}`);
   next = log(next, produced.length ? `Produced: ${produced.join(', ')}` : 'No resources produced', null);
+
+  // Gold fields pay in resources of the owner's choice — queue the picks.
+  const owed = Object.entries(goldOwed)
+    .map(([pid, count]) => ({ player: Number(pid), count }))
+    .sort((a, b) => a.player - b.player);
+  if (owed.length) {
+    next = { ...next, pendingGold: owed };
+    next = log(next, `Gold field pays out — ${owed.map((o) => players[o.player].name).join(', ')} to choose`, null);
+  }
   return { ...next, phase: PHASES.MAIN };
+}
+
+/** Resolve the front of the gold queue: that player takes `resources`. */
+function pickGold(state, resources) {
+  const queue = state.pendingGold;
+  if (!queue?.length) return state;
+  const { player, count } = queue[0];
+  if (!Array.isArray(resources) || resources.length !== count) return state;
+  if (!resources.every((r) => RESOURCE_KEYS.includes(r))) return state;
+
+  const grants = emptyHand();
+  for (const r of resources) grants[r] += 1;
+  let next = grantFromBank(state, player, grants);
+  next = { ...next, pendingGold: queue.length > 1 ? queue.slice(1) : null };
+  return log(next, `${playerName(state, player)} took gold: ${resources.map((r) => RESOURCE_LABEL[r]).join(' + ')}`, player);
 }
 
 function applyDiscards(state) {
@@ -417,7 +469,9 @@ function applyDiscards(state) {
 }
 
 function moveRobber(state, board, hexId) {
-  if (state.phase !== PHASES.MOVE_ROBBER || hexId === state.robberHex) return state;
+  if (state.phase !== PHASES.MOVE_ROBBER) return state;
+  // Covers the current hex, fog, and the friendly-robber protection.
+  if (!validRobberHexes(state, board).includes(hexId)) return state;
   const back = state.robberReturnPhase ?? PHASES.MAIN;
   let next = { ...state, robberHex: hexId };
   next = log(next, `${playerName(state, state.currentPlayer)} moved the robber`);
@@ -447,7 +501,7 @@ function steal(state, fromPlayer, resource) {
 // --- phase navigation ------------------------------------------------------
 
 function endTurn(state) {
-  if (state.phase !== PHASES.MAIN) return state;
+  if (state.phase !== PHASES.MAIN || state.pendingGold?.length) return state;
   const nextPlayer = (state.currentPlayer + 1) % state.players.length;
   const next = {
     ...state,

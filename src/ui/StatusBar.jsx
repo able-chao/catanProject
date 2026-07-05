@@ -21,8 +21,13 @@ export default function StatusBar() {
   const gameOver = game.phase === PHASES.GAME_OVER;
   // Online: you only act on your own turn.
   const canAct = mode === 'local' || game.currentPlayer === mySeat;
-  // Can't leave the phase while a trade or dev-card effect is unresolved.
-  const blocked = Boolean(game.pendingTrade) || game.pendingYearOfPlenty || game.pendingMonopoly || game.pendingRoadBuilding > 0;
+  // Can't leave the phase while a trade, dev-card effect or gold pick is unresolved.
+  const blocked =
+    Boolean(game.pendingTrade) ||
+    game.pendingYearOfPlenty ||
+    game.pendingMonopoly ||
+    game.pendingRoadBuilding > 0 ||
+    Boolean(game.pendingGold?.length);
 
   return (
     <div className="status">
@@ -76,7 +81,10 @@ export default function StatusBar() {
         )}
 
         {canAct && game.phase === PHASES.MOVE_ROBBER && !game.pendingSteal && (
-          <p className="hint">Drag the robber, or click any hex to move it.</p>
+          <p className="hint">
+            Drag the robber, or click a highlighted hex to move it.
+            {game.options?.friendlyRobber && ' Friendly robber: players under 3 VP are protected.'}
+          </p>
         )}
 
         {canAct && game.pendingSteal && (

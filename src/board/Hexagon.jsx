@@ -1,13 +1,28 @@
-// A single flat-top hex tile: terrain fill + number token (Phase 2).
+// A single flat-top hex tile: terrain fill + number token — or a fog cloud
+// when the tile hasn't been explored yet (terrain and token stay hidden).
 
 import { RESOURCES } from './tiles.js';
 
-export default function Hexagon({ tile, showCoords }) {
+export default function Hexagon({ tile, showCoords, fogged }) {
   const points = tile.corners
     .map((c) => `${c.x.toFixed(2)},${c.y.toFixed(2)}`)
     .join(' ');
   const meta = RESOURCES[tile.resource] ?? RESOURCES.desert;
   const { center } = tile;
+
+  if (fogged) {
+    return (
+      <g className="hex hex--fog">
+        <title>Unexplored — build a road up to it to reveal it</title>
+        <polygon className="hex__poly hex__poly--fog" points={points} />
+        <g className="fog-puffs">
+          <ellipse cx={center.x - 13} cy={center.y + 4} rx={13} ry={9} />
+          <ellipse cx={center.x + 12} cy={center.y + 5} rx={12} ry={8} />
+          <ellipse cx={center.x} cy={center.y - 6} rx={15} ry={10} />
+        </g>
+      </g>
+    );
+  }
 
   return (
     <g className="hex">

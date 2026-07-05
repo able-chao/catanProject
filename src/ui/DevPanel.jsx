@@ -19,6 +19,23 @@ export default function DevPanel() {
   const game = useGameStore((s) => s.game);
   const store = useGameStore();
 
+  // Gold picks come first — they can belong to ANY player (not just whoever's
+  // turn it is), so this sits above the online turn gate.
+  if (game.pendingGold?.length) {
+    const turn = game.pendingGold[0];
+    const chooser = game.players[turn.player];
+    const mine = store.mode !== 'online' || turn.player === store.mySeat;
+    if (!mine) {
+      return (
+        <div className="devpanel">
+          <h2 className="panel__title">Gold field</h2>
+          <p className="hint">Waiting for {chooser.name} to choose {turn.count} resource{turn.count > 1 ? 's' : ''}…</p>
+        </div>
+      );
+    }
+    return <GoldPicker key={`${turn.player}-${game.rollCount}`} chooser={chooser} count={turn.count} bank={game.bank} pick={store.pickGold} />;
+  }
+
   // Online: only the active player gets dev-card controls.
   if (store.mode === 'online' && game.currentPlayer !== store.mySeat) return null;
 
@@ -91,6 +108,33 @@ function MonopolyPicker({ pick }) {
             {RESOURCE_LABEL[r]}
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function GoldPicker({ chooser, count, bank, pick }) {
+  const [picks, setPicks] = useState([]);
+  const add = (r) => picks.length < count && setPicks([...picks, r]);
+  return (
+    <div className="devpanel">
+      <h2 className="panel__title">Gold field</h2>
+      <p className="hint">
+        <span style={{ color: chooser.color, fontWeight: 700 }}>{chooser.name}</span>: choose{' '}
+        {count} resource{count > 1 ? 's' : ''} ({picks.length}/{count}):
+      </p>
+      <div className="res-picker">
+        {RESOURCE_KEYS.map((r) => (
+          <button key={r} className="res-btn" disabled={bank[r] <= 0 || picks.length >= count} onClick={() => add(r)} title={RESOURCE_LABEL[r]}>
+            <span className="res__dot" style={{ background: RESOURCE_COLOR[r] }} />
+            {RESOURCE_LABEL[r]}
+          </button>
+        ))}
+      </div>
+      <p className="muted">Picked: {picks.map((r) => RESOURCE_LABEL[r]).join(' + ') || '—'}</p>
+      <div className="row-gap">
+        <button className="btn btn--small" disabled={picks.length !== count} onClick={() => pick(picks)}>Take</button>
+        <button className="btn btn--ghost btn--small" onClick={() => setPicks([])}>Reset</button>
       </div>
     </div>
   );

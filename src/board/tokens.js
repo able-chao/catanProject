@@ -45,34 +45,55 @@ function isValidRedPlacement(numberByHex, hexes) {
 /**
  * Assign the map's number tokens to the producing hexes (walking board order)
  * such that no two red tokens are adjacent. Desert/lake tiles are skipped.
+ *
+ * Small maps almost always succeed by rejection sampling within a few tries;
+ * dense maps (e.g. USA: 24 reds among 138 tiles) essentially never do, so
+ * after `maxAttempts` we repair the last shuffle instead — each repair swap
+ * strictly reduces the conflict count, so it always terminates valid.
  * @returns {{ numberByHex: Map<hexId, token>, attempts: number }}
  */
-export function placeTokens(hexOrder, hexes, rng, tokenNumbers, maxAttempts = 1000) {
+export function placeTokens(hexOrder, hexes, rng, tokenNumbers, maxAttempts = 80) {
   const targets = hexOrder.filter((id) => hexes.get(id).yields != null);
   const pool = buildTokens(tokenNumbers);
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  const deal = () => {
     const tokens = shuffle(pool, rng);
     const numberByHex = new Map();
     targets.forEach((hexId, i) => numberByHex.set(hexId, tokens[i]));
+    return numberByHex;
+  };
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const numberByHex = deal();
     if (isValidRedPlacement(numberByHex, hexes)) {
       return { numberByHex, attempts: attempt };
     }
   }
 
-  // Fallback (extremely unlikely to be reached): repair by swapping any red
-  // token that conflicts with a random non-red hex until valid.
-  const tokens = shuffle(pool, rng);
-  const numberByHex = new Map();
-  targets.forEach((hexId, i) => numberByHex.set(hexId, tokens[i]));
-  repairRedAdjacency(numberByHex, hexes, targets, rng);
-  return { numberByHex, attempts: maxAttempts };
+  // Repair fresh shuffles until one converges. A single repair pass can (very
+  // rarely, on red-dense maps) strand itself with no safe cell to move a red
+  // into — a new shuffle re-rolls the layout, so a handful of rounds always
+  // lands a valid board.
+  let numberByHex = deal();
+  for (let round = 0; round < 100; round++) {
+    repairRedAdjacency(numberByHex, hexes, targets, rng);
+    if (isValidRedPlacement(numberByHex, hexes)) {
+      return { numberByHex, attempts: maxAttempts + round + 1 };
+    }
+    numberByHex = deal();
+  }
+  return { numberByHex, attempts: maxAttempts + 100 }; // effectively unreachable
 }
 
+/**
+ * Move each conflicting red token to a random SAFE cell — a non-red cell with
+ * no red neighbours (which also rules out cells next to the conflict itself).
+ * A swap therefore never creates a new adjacency and always removes at least
+ * one, so conflicts strictly decrease until none remain.
+ */
 function repairRedAdjacency(numberByHex, hexes, targets, rng, maxSwaps = 500) {
   for (let i = 0; i < maxSwaps; i++) {
     if (isValidRedPlacement(numberByHex, hexes)) return;
-    // Find a conflicting red hex and swap it with a random non-red hex.
     const conflict = targets.find((id) => {
       const t = numberByHex.get(id);
       return (
@@ -81,8 +102,12 @@ function repairRedAdjacency(numberByHex, hexes, targets, rng, maxSwaps = 500) {
       );
     });
     if (!conflict) return;
-    const nonRed = targets.filter((id) => !numberByHex.get(id).red);
-    const swapWith = nonRed[Math.floor(rng() * nonRed.length)];
+    const safe = targets.filter((id) => {
+      if (numberByHex.get(id).red) return false;
+      return !hexes.get(id).neighborIds.some((n) => numberByHex.get(n)?.red);
+    });
+    if (!safe.length) return; // no safe cell left — give up (never at our densities)
+    const swapWith = safe[Math.floor(rng() * safe.length)];
     const tmp = numberByHex.get(conflict);
     numberByHex.set(conflict, numberByHex.get(swapWith));
     numberByHex.set(swapWith, tmp);

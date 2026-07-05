@@ -18,6 +18,9 @@ export const RESOURCES = {
   hills: { id: 'hills', yields: 'brick', label: 'Hills', resource: 'Brick', color: '#c45a3b' },
   desert: { id: 'desert', yields: null, label: 'Desert', resource: '—', color: '#d8c89a' },
   lake: { id: 'lake', yields: null, label: 'Lake', resource: '—', color: '#4a8fc0' },
+  // Gold produces a resource OF THE OWNER'S CHOICE when its number rolls.
+  // Placed at fixed map positions (goldCoords), never in the shuffled bag.
+  gold: { id: 'gold', yields: 'gold', label: 'Gold Field', resource: '★ Any', color: '#e0b64f' },
 };
 
 /** A map's tile bag as a flat array of terrain ids, ready to shuffle. */

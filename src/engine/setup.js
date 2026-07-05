@@ -46,8 +46,10 @@ export function logEntry(turn, text, player = null) {
 /**
  * Build the starting game state for `playerCount` players.
  * Setup order is a snake draft: 1→N forward, then N→1 reverse.
+ * `options.friendlyRobber` — the robber can't be placed on hexes adjacent to
+ * players still under 3 victory points.
  */
-export function createInitialGame(board, playerCount = 4) {
+export function createInitialGame(board, playerCount = 4, options = {}) {
   const players = PLAYER_PRESETS.slice(0, playerCount).map((p, i) => ({
     id: i,
     name: p.name,
@@ -65,12 +67,20 @@ export function createInitialGame(board, playerCount = 4) {
   const setupOrder = [...forward, ...forward.slice().reverse()];
 
   // The robber starts on a non-producing tile — desert on classic, the lake on
-  // maps that have one instead.
-  const robberStart = [...board.hexes.values()].find((h) => h.yields == null);
+  // maps that have one instead. Never under fog (board gen guarantees fog maps
+  // keep their deserts revealed, but stay defensive).
+  const robberStart = [...board.hexes.values()].find((h) => h.yields == null && !h.fog);
+
+  // Hexes that start hidden under fog. Lives in GAME state (not the board)
+  // because it changes during play — revealed by roads, synced online, undone
+  // like everything else. Empty object on maps without fog.
+  const fog = {};
+  for (const h of board.hexes.values()) if (h.fog) fog[h.id] = true;
 
   return {
     seed: board.seed,
     mapId: board.mapId,
+    options: { friendlyRobber: false, ...options },
     phase: PHASES.SETUP_FORWARD,
     players,
     currentPlayer: setupOrder[0],
@@ -81,6 +91,8 @@ export function createInitialGame(board, playerCount = 4) {
     buildings: {}, // vertexId -> { type: 'settlement' | 'city', player }
     roads: {}, //    edgeId   -> playerId
     robberHex: robberStart ? robberStart.id : board.hexOrder[0],
+    fog,
+    pendingGold: null, // [{ player, count }] — gold-field picks owed after a roll
     dice: null,
     diceTotal: null,
     rollCount: 0, // increments each roll (drives the dice animation)
